@@ -9,52 +9,36 @@ end
 # Build Targets
 
 define_target 'protocol-quic-library' do |target|
-	target.depends 'Language/C++14'
+	target.depends 'Language/C++17'
+	target.depends 'Build/Compile/Commands'
 	
-	target.provides 'Library/ProtocolQUIC' do
+	target.depends 'Library/ngtcp2', public: true
+	
+	target.provides 'Library/Protocol/QUIC' do
 		source_root = target.package.path + 'source'
 		
-		library_path = build static_library: 'ProtocolQUIC', source_files: source_root.glob('ProtocolQUIC/**/*.cpp')
+		library_path = build static_library: 'ProtocolQUIC', source_files: source_root.glob('Protocol/QUIC/**/*.cpp')
 		
 		append linkflags library_path
 		append header_search_paths source_root
+		
+		compile_commands destination_path: (source_root + "compile_commands.json")
 	end
 end
 
 define_target 'protocol-quic-test' do |target|
-	target.depends 'Library/ProtocolQUIC'
+	target.depends 'Library/Protocol/QUIC'
 	target.depends 'Library/UnitTest'
 	
-	target.depends 'Language/C++14'
+	target.depends 'Language/C++17'
+	target.depends 'Build/Compile/Commands'
 	
-	target.provides 'Test/ProtocolQUIC' do |arguments|
+	target.provides 'Test/Protocol/QUIC' do |arguments|
 		test_root = target.package.path + 'test'
 		
-		run tests: 'ProtocolQUIC-tests', source_files: test_root.glob('ProtocolQUIC/**/*.cpp'), arguments: arguments
-	end
-end
-
-define_target 'protocol-quic-executable' do |target|
-	target.depends 'Library/ProtocolQUIC'
-	
-	target.depends 'Language/C++14'
-	
-	target.provides 'Executable/ProtocolQUIC' do
-		source_root = target.package.path + 'source'
+		run tests: 'ProtocolQUIC-tests', source_files: test_root.glob('Protocol/QUIC/**/*.cpp'), arguments: arguments
 		
-		executable_path = build executable: 'ProtocolQUIC', source_files: source_root.glob('ProtocolQUIC.cpp')
-		
-		protocol_quic_executable executable_path
-	end
-end
-
-define_target 'protocol-quic-run' do |target|
-	target.depends 'Executable/ProtocolQUIC'
-	
-	target.depends :executor
-	
-	target.provides 'Run/ProtocolQUIC' do |*arguments|
-		run executable_file: environment[:protocol_quic_executable], arguments: arguments
+		compile_commands destination_path: (test_root + "compile_commands.json")
 	end
 end
 
@@ -71,11 +55,14 @@ define_configuration 'development' do |configuration|
 	configuration.require 'unit-test'
 	
 	# Provides some useful C++ generators:
+	configuration.require 'generate-template'
 	configuration.require 'generate-cpp-class'
 	
-	configuration.require "generate-project"
+	configuration.require "build-compile-commands"
 end
 
 define_configuration "protocol-quic" do |configuration|
 	configuration.public!
+	
+	configuration.require "nghttp3"
 end

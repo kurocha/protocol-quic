@@ -1,11 +1,6 @@
 # Protocol QUIC
-## Usage
 
-Protocol QUIC is a fantastic project with lots of potential.
-
-For examples and documentation please see the main [project page][1].
-
-[1]: http://teapot.nz/
+Protocol QUIC provides a C++ interface for the QUIC protocol.
 
 ## Setup
 
@@ -27,14 +22,11 @@ Fetch all the necessary project dependencies:
 
 Run the tests to confirm basic functionality:
 
-	$ cd protocol-quic
-You can run the tool by executing the following:
-
-	$ teapot Test/ProtocolQUIC
-
-## Usage
+	$ teapot Test/Protocol/QUIC
 
 ## Contributing
+
+We welcome contributions to this project.
 
 1. Fork it.
 2. Create your feature branch (`git checkout -b my-new-feature`).

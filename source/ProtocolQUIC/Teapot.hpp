@@ -1,4 +1,0 @@
-
-namespace ProtocolQUIC {
-	void sing();
-}

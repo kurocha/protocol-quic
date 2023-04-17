@@ -24,7 +24,7 @@ build-clang:
   :commit: 4f07ae243bfba26b63c3da57f709910308bbffb8
   :branch: master
 build-linux:
-  :commit: 4411be8319a28bfb93c35bca471aea15b6e7b196
+  :commit: cbc8c52c2ca2fc75761e545c83429ef34e4cd4fe
   :branch: master
 build-files:
   :commit: 2e5392ef4e171885b621288c7829e5160f1255bf
@@ -37,4 +37,25 @@ executor-lldb:
   :branch: master
 streams:
   :commit: 2f9141de26e5331ab35fc91c03ab6a60317bbf7c
+  :branch: master
+build-compile-commands:
+  :commit: a2953169abbb896e7f0b5e8ac41fc89edd95d4b4
+  :branch: main
+nghttp3:
+  :commit: 735fd39749ec5efbaae9de62fa78538c09007b7c
+  :branch: main
+ngtcp2:
+  :commit: 8cea50a8c2b57a9337fc0b3ace31c6799111bf0d
+  :branch: main
+picotls:
+  :commit: 89d299d999c841335016f2c3a8b39650720cced2
+  :branch: main
+openssl:
+  :commit: 2f48d686aaaf20dc6d7e8a277803657eb5951530
+  :branch: main
+build-make:
+  :commit: 50998307f3d1f462c2bda1999b42b2ea8aeb4b15
+  :branch: master
+build-cmake:
+  :commit: 6558fdad5bbb475f0fa5584ff773de8f12ff232e
   :branch: master
