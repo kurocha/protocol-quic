@@ -8,20 +8,20 @@
 
 #pragma once
 
+#include "Connection.hpp"
 #include "Random.hpp"
 
 #include <cstdint>
 #include <memory>
 #include <string_view>
 
-#include <ngtcp2/ngtcp2.h>
 #include "TLS/ClientSession.hpp"
 
 namespace Protocol
 {
 	namespace QUIC
 	{
-		class Client
+		class Client : public Connection
 		{
 		public:
 			Client(std::shared_ptr<TLS::ClientContext> tls_context, const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *transport_parameters);
@@ -42,9 +42,6 @@ namespace Protocol
 			
 			Random _random;
 			std::array<uint8_t, 32> _static_secret;
-			
-			ngtcp2_conn *_connection;
-			ngtcp2_connection_close_error _last_error;
 			
 			std::uint32_t _chosen_version;
 		};

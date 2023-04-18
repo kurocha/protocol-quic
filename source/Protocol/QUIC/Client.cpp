@@ -66,7 +66,6 @@ namespace Protocol
 		
 		Client::~Client()
 		{
-			ngtcp2_conn_del(_connection);
 		}
 		
 		// void Client::decode_early_transport_parameters(std::string_view buffer)

@@ -8,8 +8,7 @@
 
 #pragma once
 
-#include <ngtcp2/ngtcp2_crypto_picotls.h>
-#include <picotls.h>
+#include "Handle.hpp"
 
 #include <string>
 
@@ -29,6 +28,14 @@ namespace Protocol
 				
 				std::string cipher_name() const;
 				std::string selected_protocol() const;
+				
+				void set_handle(Handle * handle) {
+					handle->set(_context.ptls);
+				}
+				
+				Handle * handle() {
+					return Handle::get(_context.ptls);
+				}
 				
 			protected:
 				ngtcp2_crypto_picotls_ctx _context;

@@ -8,18 +8,24 @@
 
 #pragma once
 
+#include <memory>
+
+#include "Connection.hpp"
+#include "TLS/ServerSession.hpp"
+
 namespace Protocol
 {
 	namespace QUIC
 	{
-		class Server
+		class Server : public Connection
 		{
 		public:
 			Server();
 			virtual ~Server();
 			
 		private:
-			
+			std::shared_ptr<TLS::ServerContext> _tls_context;
+
 		};
 	}
 }

@@ -8,12 +8,7 @@
 
 #pragma once
 
-#include <picotls.h>
-#include <picotls/openssl.h>
-
-#include <ngtcp2/ngtcp2.h>
-#include <ngtcp2/ngtcp2_crypto.h>
-#include <ngtcp2/ngtcp2_crypto_picotls.h>
+#include "Context.hpp"
 
 namespace Protocol
 {
@@ -21,21 +16,10 @@ namespace Protocol
 	{
 		namespace TLS
 		{
-			class ClientContext
+			class ClientContext : public Context
 			{
 			public:
 				ClientContext();
-				virtual ~ClientContext();
-				
-				void set_keylog(bool enabled);
-				
-				ptls_context_t * native_handle() {return &_context;}
-				
-				void load_certificate_file(const char * path);
-				void load_private_key_file(const char * path);
-			private:
-				ptls_context_t _context;
-				ptls_openssl_sign_certificate_t _sign_certificate;
 			};
 		}
 	}
