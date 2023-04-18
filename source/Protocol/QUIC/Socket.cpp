@@ -6,6 +6,8 @@
 //  Copyright, 2023, by Samuel Williams. All rights reserved.
 //
 
+#define __APPLE_USE_RFC_3542
+
 #include "Socket.hpp"
 #include "Defer.hpp"
 
@@ -14,6 +16,11 @@
 
 #include <unistd.h>
 #include <net/if.h>
+
+ #ifndef SOCK_NONBLOCK
+ #include <fcntl.h>
+ #define SOCK_NONBLOCK O_NONBLOCK
+ #endif
 
 namespace Protocol
 {
@@ -70,6 +77,8 @@ namespace Protocol
 					}
 				}
 			}
+			
+			return {};
 		}
 		
 		Socket::Socket(int descriptor, const Address & address) : _descriptor(descriptor), _address(address)
@@ -169,12 +178,12 @@ namespace Protocol
 			
 			switch (family) {
 			case AF_INET:
-				if (setsockopt(descriptor, IPPROTO_IP, IP_DONTFRAG, &val, static_cast<socklen_t>(sizeof(value))) == -1) {
+				if (setsockopt(descriptor, IPPROTO_IP, IP_DONTFRAG, &value, static_cast<socklen_t>(sizeof(value))) == -1) {
 					throw std::runtime_error("set_ip_dontfrag:setsockopt(IP_DONTFRAG): " + std::string(strerror(errno)));
 				}
 				break;
 			case AF_INET6:
-				if (setsockopt(descriptor, IPPROTO_IPV6, IPV6_DONTFRAG, &val, static_cast<socklen_t>(sizeof(value))) == -1) {
+				if (setsockopt(descriptor, IPPROTO_IPV6, IPV6_DONTFRAG, &value, static_cast<socklen_t>(sizeof(value))) == -1) {
 					throw std::runtime_error("set_ip_dontfrag:setsockopt(IPV6_DONTFRAG): " + std::string(strerror(errno)));
 				}
 				break;

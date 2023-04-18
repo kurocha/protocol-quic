@@ -10,6 +10,7 @@
 
 #include <openssl/pem.h>
 #include <stdexcept>
+#include <string>
 
 namespace Protocol
 {
