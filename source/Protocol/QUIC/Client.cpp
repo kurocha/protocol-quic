@@ -38,6 +38,9 @@ namespace Protocol
 		
 		void Client::setup(const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *transport_parameters)
 		{
+			Random::generate_secret(_static_secret);
+			settings->rand_ctx.native_handle = reinterpret_cast<void*>(&_random);
+			
 			auto callbacks = ngtcp2_callbacks{
 				.client_initial = ngtcp2_crypto_client_initial_cb,
 				.recv_crypto_data = ngtcp2_crypto_recv_crypto_data_cb,
@@ -64,25 +67,30 @@ namespace Protocol
 		
 		Client::Client(std::shared_ptr<TLS::ClientContext> tls_context, const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *transport_parameters) : _tls_context(tls_context), _chosen_version(chosen_version)
 		{
-			Random::generate_secret(_static_secret);
-			settings->rand_ctx.native_handle = reinterpret_cast<void*>(&_random);
-			
 			setup(dcid, scid, path, chosen_version, settings, transport_parameters);
 		}
 		
-		Client::Client(std::shared_ptr<TLS::ClientContext> tls_context)
-		{
-			Random::generate_secret(_static_secret);
-			settings->rand_ctx.native_handle = reinterpret_cast<void*>(&_random);
+		// Client::Client(std::shared_ptr<TLS::ClientContext> tls_context)
+		// {
+		// 	auto dcid = generate_cid();
+		// 	auto scid = generate_cid();
 			
-			auto dcid = generate_cid();
-			auto scid = generate_cid();
-			
-			setup(&dcid, &scid, path, chosen_version, settings, transport_parameters);
-		}
+		// 	setup(&dcid, &scid, path, chosen_version, settings, transport_parameters);
+		// }
 		
 		Client::~Client()
 		{
+		}
+		
+		void Client::connect(const Address & address)
+		{
+			Socket & socket = _sockets.emplace_back(address.family(), SOCK_DGRAM, IPPROTO_UDP);
+			
+			socket.connect(address);
+			
+			while (socket) {
+				this->receive_from(socket);
+			}
 		}
 		
 		// void Client::decode_early_transport_parameters(std::string_view buffer)

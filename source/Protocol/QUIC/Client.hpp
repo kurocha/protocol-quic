@@ -27,8 +27,10 @@ namespace Protocol
 			
 		public:
 			Client(std::shared_ptr<TLS::ClientContext> tls_context, const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *transport_parameters);
-			Client(std::shared_ptr<TLS::ClientContext> tls_context);
+			// Client(std::shared_ptr<TLS::ClientContext> tls_context);
 			virtual ~Client();
+			
+			void connect(const Address & address);
 			
 			ngtcp2_conn* native_handle() {return _connection;}
 			

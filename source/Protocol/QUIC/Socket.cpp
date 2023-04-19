@@ -12,7 +12,7 @@
 #include "Defer.hpp"
 
 #include <cstring>
-#include <stdexcept>
+#include <system_error>
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -21,8 +21,9 @@
 
 #ifndef SOCK_NONBLOCK
 #include <fcntl.h>
-#define SOCK_NONBLOCK O_NONBLOCK
 #endif
+
+#include <Scheduler/Monitor.hpp>
 
 namespace Protocol
 {
@@ -69,7 +70,7 @@ namespace Protocol
 			return {};
 		}
 		
-		std::vector<Address> Address::resolve(const char * host, const char * service, int family = AF_UNSPEC, int socktype = SOCK_DGRAM, int flags = AI_PASSIVE|AI_ADDRCONFIG)
+		std::vector<Address> Address::resolve(const char * host, const char * service, int family, int type, int flags)
 		{
 			std::vector<Address> addresses;
 			
@@ -77,7 +78,7 @@ namespace Protocol
 			std::memset(&hints, 0, sizeof(hints));
 			
 			hints.ai_family = family;
-			hints.ai_socktype = socktype;
+			hints.ai_socktype = type;
 			hints.ai_flags = flags;
 			
 			addrinfo * result = nullptr;
@@ -91,7 +92,7 @@ namespace Protocol
 			});
 			
 			for (auto iterator = result; iterator; iterator = iterator->ai_next) {
-				addresses.emplace_back(*iterator->ai_addr, iterator->ai_addrlen);
+				addresses.emplace_back(iterator->ai_addr, iterator->ai_addrlen);
 			}
 			
 			return addresses;
@@ -144,11 +145,33 @@ namespace Protocol
 			return 0;
 		}
 		
-		Socket::Socket(int descriptor, const Address & address) : _descriptor(descriptor), _address(address)
+		int socket_nonblocking(int domain, int type, int protocol)
 		{
-			set_receive_ecn(_descriptor, _address.family());
-			set_ip_mtu_discover(_descriptor, _address.family());
-			set_ip_dontfrag(_descriptor, _address.family());
+#ifdef SOCK_NONBLOCK
+			int descriptor = socket(domain, type|SOCK_NONBLOCK, protocol);
+#else
+			int descriptor = socket(domain, type, protocol);
+			fcntl(descriptor, F_SETFL, fcntl(descriptor, F_GETFL, 0)|O_NONBLOCK);
+#endif
+			
+			if (descriptor < 0) {
+				throw std::system_error(errno, std::generic_category(), "socket");
+			}
+			
+			return descriptor;
+		}
+		
+		Socket::Socket(int domain, int type, int protocol)
+		{
+			_descriptor = socket_nonblocking(domain, SOCK_DGRAM, 0);
+			
+			if (_descriptor < 0) {
+				throw std::system_error(errno, std::generic_category(), "socket");
+			}
+			
+			set_receive_ecn(_descriptor, domain);
+			set_ip_mtu_discover(_descriptor, domain);
+			set_ip_dontfrag(_descriptor, domain);
 		}
 		
 		Socket::~Socket()
@@ -156,6 +179,39 @@ namespace Protocol
 			if (_descriptor >= 0) {
 				::close(_descriptor);
 			}
+		}
+		
+		Socket::Socket(Socket && other)
+		{
+			_descriptor = other._descriptor;
+			_address = other._address;
+			other._descriptor = -1;
+		}
+		
+		Socket & Socket::operator=(Socket && other)
+		{
+			_descriptor = other._descriptor;
+			_address = other._address;
+			other._descriptor = -1;
+			return *this;
+		}
+		
+		void Socket::bind(const Address & address)
+		{
+			if (::bind(_descriptor, &address.data.sa, address.length) < 0) {
+				throw std::system_error(errno, std::generic_category(), "bind");
+			}
+			
+			_address = address;
+		}
+		
+		void Socket::connect(const Address & address)
+		{
+			if (::connect(_descriptor, &address.data.sa, address.length) < 0) {
+				throw std::system_error(errno, std::generic_category(), "connect");
+			}
+			
+			_address = address;
 		}
 		
 		ECN read_ecn(const std::uint8_t *data)
@@ -195,38 +251,6 @@ namespace Protocol
 			}
 			
 			return 0;
-		}
-		
-		Socket Socket::connect(const char *host, const char *service) {
-			addrinfo hints{.ai_family = AF_UNSPEC, .ai_socktype = SOCK_DGRAM};
-			addrinfo *results;
-			
-			if (auto error = getaddrinfo(host, service, &hints, &results); error != 0) {
-				throw std::runtime_error("getaddrinfo: " + std::string(gai_strerror(error)));
-			}
-			
-			auto free_results = defer([&]{
-				freeaddrinfo(results);
-			});
-			
-			int descriptor = -1;
-			
-			addrinfo *iterator = results;
-			
-			while (iterator) {
-				descriptor = create_udp_socket(iterator->ai_family);
-				if (descriptor != -1) {
-					break;
-				}
-				
-				iterator = iterator->ai_next;
-			}
-			
-			if (!iterator) {
-				throw std::runtime_error("Could not create socket");
-			}
-			
-			return Socket(descriptor, iterator);
 		}
 		
 		size_t Socket::send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn)
@@ -280,9 +304,21 @@ namespace Protocol
 			
 			ssize_t result;
 			
+			Scheduler::Monitor monitor(_descriptor);
+			
 			do {
 				result = recvmsg(_descriptor, &message, 0);
-			} while (result == -1 && (errno == EINTR || errno == EAGAIN));
+				
+				if (result == -1) {
+					if (errno == EAGAIN || errno == EWOULDBLOCK) {
+						monitor.wait_readable();
+					} else if (errno == EINTR) {
+						// ignore
+					} else {
+						throw std::system_error(errno, std::generic_category(), "recvmsg");
+					}
+				}
+			} while (result == -1 && errno == EINTR);
 			
 			if (result == -1) {
 				throw std::runtime_error("recvmsg: " + std::string(strerror(errno)));

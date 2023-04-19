@@ -13,6 +13,7 @@ define_target 'protocol-quic-library' do |target|
 	target.depends 'Build/Compile/Commands'
 	
 	target.depends 'Library/ngtcp2', public: true
+	target.depends 'Library/Scheduler', public: true
 	
 	target.provides 'Library/Protocol/QUIC' do
 		source_root = target.package.path + 'source'
@@ -59,6 +60,8 @@ define_configuration 'development' do |configuration|
 	configuration.require 'generate-cpp-class'
 	
 	configuration.require "build-compile-commands"
+	
+	configuration.require "scheduler"
 end
 
 define_configuration "protocol-quic" do |configuration|

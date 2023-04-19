@@ -22,7 +22,13 @@ namespace Protocol
 		
 		void Server::listen(const Address & address)
 		{
-			_sockets.push_back(Socket::bind(address));
+			Socket & socket = _sockets.emplace_back(address.family(), SOCK_DGRAM, IPPROTO_UDP);
+			
+			socket.bind(address);
+			
+			while (socket) {
+				this->receive_from(socket);
+			}
 		}
 	}
 }

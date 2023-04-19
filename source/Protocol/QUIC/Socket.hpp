@@ -14,6 +14,7 @@
 #include <optional>
 #include <vector>
 
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -47,6 +48,8 @@ namespace Protocol
 			Address(const Destination & destination) : Address(destination.addr, destination.addrlen) {}
 			Address(const addrinfo * addr) : Address(addr->ai_addr, addr->ai_addrlen) {}
 			
+			operator bool() const {return length > 0;}
+			
 			operator Destination() {return {&data.sa, length};}
 			operator const Destination() const {return {const_cast<ngtcp2_sockaddr*>(&data.sa), length};}
 			
@@ -74,25 +77,41 @@ namespace Protocol
 		class Socket
 		{
 		public:
-			// The address provided here is
-			Socket(int descriptor, const Address & address);
-			Socket(int descriptor, const addrinfo * address);
+			Socket(int domain, int type = SOCK_DGRAM, int protocol = 0);
 			~Socket();
+			
+			Socket(Socket && other);
+			Socket & operator=(Socket && other);
+			
+			Socket(const Socket &) = delete;
+			Socket & operator=(const Socket &) = delete;
+			
+			void bind(const Address & address);
+			void connect(const Address & address);
+			
+			void close() {
+				if (_descriptor >= 0) {
+					::close(_descriptor);
+					_descriptor = -1;
+				}
+			}
+			
+			operator bool() const {return _descriptor >= 0;}
 			
 			int descriptor() const {return _descriptor;}
 			const Address & address() const {return _address;}
 			
-			// Connect to the remote host and service/port.
-			static Socket connect(const char * host, const char * service);
-			
 			size_t send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn = ECN::UNSPECIFIED);
+			
+			// Address is the remote address that sent the packet.
 			size_t receive_packet(void * data, std::size_t size, Address & address, ECN & ecn);
 			
 		private:
-			int _descriptor = 0;
-			ECN _ecn = ECN::UNSPECIFIED;
-			
+			int _descriptor = -1;
+			// The local address we are bound to.
 			Address _address;
+			
+			ECN _ecn = ECN::UNSPECIFIED;
 		};
 	}
 }
