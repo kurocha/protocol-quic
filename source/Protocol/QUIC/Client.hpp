@@ -23,8 +23,11 @@ namespace Protocol
 	{
 		class Client : public Connection
 		{
+			void setup(const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *transport_parameters);
+			
 		public:
 			Client(std::shared_ptr<TLS::ClientContext> tls_context, const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *transport_parameters);
+			Client(std::shared_ptr<TLS::ClientContext> tls_context);
 			virtual ~Client();
 			
 			ngtcp2_conn* native_handle() {return _connection;}
@@ -44,6 +47,7 @@ namespace Protocol
 			std::array<uint8_t, 32> _static_secret;
 			
 			std::uint32_t _chosen_version;
+			
 		};
 	}
 }

@@ -6,9 +6,11 @@
 //  Copyright, 2023, by Samuel Williams. All rights reserved.
 //
 
+#include "Protocol/QUIC/TLS/ServerContext.hpp"
 #include <UnitTest/UnitTest.hpp>
 
 #include <Protocol/QUIC/Client.hpp>
+#include <Protocol/QUIC/Server.hpp>
 
 namespace Protocol
 {
@@ -21,7 +23,17 @@ namespace Protocol
 			
 			{"it should have some real tests",
 				[](UnitTest::Examiner & examiner) {
-					examiner.expect(true).to(be_true);
+					auto addresses = Protocol::QUIC::Address::resolve("localhost", "4433");
+					
+					auto tls_server_context = std::make_shared<Protocol::QUIC::TLS::ServerContext>();
+					Protocol::QUIC::Server server(tls_server_context);
+					
+					for (auto & address : addresses) {
+						server.listen(address);
+					}
+					
+					auto tls_client_context = std::make_shared<Protocol::QUIC::TLS::ClientContext>();
+					Protocol::QUIC::Client client(tls_client_context);
 				}
 			},
 		};

@@ -12,12 +12,17 @@ namespace Protocol
 {
 	namespace QUIC
 	{
-		Server::Server()
+		Server::Server(std::shared_ptr<TLS::ServerContext> tls_context) : _tls_context(tls_context)
 		{
 		}
 		
 		Server::~Server()
 		{
+		}
+		
+		void Server::listen(const Address & address)
+		{
+			_sockets.push_back(Socket::bind(address));
 		}
 	}
 }

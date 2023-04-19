@@ -7,6 +7,7 @@
 //
 
 #include "Connection.hpp"
+#include "Random.hpp"
 
 #include <chrono>
 #include <array>
@@ -22,14 +23,53 @@ namespace Protocol
 			).count();
 		}
 		
+		ngtcp2_cid Connection::generate_cid(std::size_t length)
+		{
+			assert(length <= NGTCP2_MAX_CIDLEN);
+			
+			ngtcp2_cid cid;
+			cid.datalen = length;
+			
+			Random::generate_secure(cid.data, cid.datalen);
+			
+			return cid;
+		}
+		
 		Connection::Connection(ngtcp2_conn * connection) : _connection(connection)
 		{
+			ngtcp2_connection_close_error_default(&_last_error);
 		}
 		
 		Connection::~Connection()
 		{
 			if (_connection)
 				ngtcp2_conn_del(_connection);
+		}
+		
+		int Connection::handshake_completed_callback(ngtcp2_conn *conn, void *user_data)
+		{
+			try {
+				reinterpret_cast<Connection*>(user_data)->handshake_completed();
+			} catch (...) {
+				return NGTCP2_ERR_CALLBACK_FAILURE;
+			}
+		}
+		
+		void Connection::handshake_completed()
+		{
+		}
+		
+		int Connection::receive_stream_data_callback(ngtcp2_conn *conn, uint32_t flags, int64_t stream_id, uint64_t offset, const uint8_t *data, size_t size, void *user_data, void *stream_user_data)
+		{
+			try {
+				reinterpret_cast<Connection*>(user_data)->receive_stream_data(flags, stream_id, data, size, stream_user_data);
+			} catch (...) {
+				return NGTCP2_ERR_CALLBACK_FAILURE;
+			}
+		}
+		
+		void Connection::receive_stream_data(StreamDataFlags flags, StreamID stream_id, const Byte *buffer, std::size_t length, void * user_data)
+		{
 		}
 		
 		void Connection::receive_from(Socket & socket, std::size_t count)
@@ -105,6 +145,18 @@ namespace Protocol
 				ngtcp2_conn_del(_connection);
 				_connection = nullptr;
 			}
+		}
+		
+		Socket & Connection::socket_for(const Address & remote_address)
+		{
+			auto current_path = ngtcp2_conn_get_path(_connection);
+			auto current_socket = static_cast<Socket *>(current_path->user_data);
+			
+			if (current_socket->address() == remote_address) {
+				return *current_socket;
+			}
+			
+			
 		}
 	}
 }

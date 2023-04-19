@@ -20,12 +20,13 @@ namespace Protocol
 		class Server : public Connection
 		{
 		public:
-			Server();
+			Server(std::shared_ptr<TLS::ServerContext> tls_context);
 			virtual ~Server();
+			
+			void listen(const Address & address);
 			
 		private:
 			std::shared_ptr<TLS::ServerContext> _tls_context;
-
 		};
 	}
 }

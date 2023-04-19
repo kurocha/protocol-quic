@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <string>
 #include <optional>
+#include <vector>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -24,9 +25,14 @@ namespace Protocol
 {
 	namespace QUIC
 	{
+		using Byte = std::uint8_t;
 		using Destination = ngtcp2_addr;
 		
+		// A value based wrapper around ngtcp2_sockaddr_union.
 		struct Address {
+			static std::optional<Address> extract(msghdr *message, int family);
+			static std::vector<Address> resolve(const char * host, const char * service, int family = AF_UNSPEC, int socktype = SOCK_DGRAM, int flags = AI_PASSIVE|AI_ADDRCONFIG);
+			
 			ngtcp2_sockaddr_union data;
 			ngtcp2_socklen length = 0;
 			
@@ -44,16 +50,14 @@ namespace Protocol
 			operator Destination() {return {&data.sa, length};}
 			operator const Destination() const {return {const_cast<ngtcp2_sockaddr*>(&data.sa), length};}
 			
-			std::string to_string() const;
-		};
-		
-		struct LocalAddress : public Address {
-			std::uint32_t interface_index = 0;
+			bool operator==(const Address & other) const {
+				return length == other.length && std::memcmp(&data, &other.data, length) == 0;
+			}
+			
+			int family() const {return data.sa.sa_family;}
 			
 			std::string to_string() const;
 		};
-		
-		std::optional<LocalAddress> local_address(msghdr *msg, int family);
 		
 		enum class ECN : std::uint8_t {
 			// The not-ECT codepoint '00' indicates a packet that is not using ECN.
@@ -67,27 +71,10 @@ namespace Protocol
 			CONGESTION_EXPERIENCED = 0x03,
 		};
 		
-		// msghdr_get_ecn gets ECN bits from |msg|.  |family| is the address
-		// family from which packet is received.
-		ECN msghdr_get_ecn(msghdr *msg, int family);
-
-		// fd_set_ecn sets ECN bits |ecn| to |fd|.  |family| is the address
-		// family of |fd|.
-		void set_ecn(int fd, int family, unsigned int ecn);
-
-		// fd_set_rec v_ecn sets socket option to |fd| so that it can receive
-		// ECN bits.
-		void set_recv_ecn(int fd, int family);
-
-		// fd_set_ip_mtu_discover sets IP(V6)_MTU_DISCOVER socket option to fd.
-		void set_ip_mtu_discover(int fd, int family);
-
-		// fd_set_ip_dontfrag sets IP(V6)_DONTFRAG socket option to fd.
-		void set_ip_dontfrag(int fd, int family);
-		
 		class Socket
 		{
 		public:
+			// The address provided here is
 			Socket(int descriptor, const Address & address);
 			Socket(int descriptor, const addrinfo * address);
 			~Socket();
@@ -95,6 +82,7 @@ namespace Protocol
 			int descriptor() const {return _descriptor;}
 			const Address & address() const {return _address;}
 			
+			// Connect to the remote host and service/port.
 			static Socket connect(const char * host, const char * service);
 			
 			size_t send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn = ECN::UNSPECIFIED);
@@ -102,6 +90,8 @@ namespace Protocol
 			
 		private:
 			int _descriptor = 0;
+			ECN _ecn = ECN::UNSPECIFIED;
+			
 			Address _address;
 		};
 	}

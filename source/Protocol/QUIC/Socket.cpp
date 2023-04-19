@@ -15,12 +15,14 @@
 #include <stdexcept>
 
 #include <unistd.h>
-#include <net/if.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
- #ifndef SOCK_NONBLOCK
- #include <fcntl.h>
- #define SOCK_NONBLOCK O_NONBLOCK
- #endif
+#ifndef SOCK_NONBLOCK
+#include <fcntl.h>
+#define SOCK_NONBLOCK O_NONBLOCK
+#endif
 
 namespace Protocol
 {
@@ -37,26 +39,13 @@ namespace Protocol
 			return buffer;
 		}
 		
-		std::string LocalAddress::to_string() const
-		{
-			std::string interface_name(IF_NAMESIZE, '\0');
-			if_indextoname(interface_index, interface_name.data());
-			
-			std::string name = Address::to_string();
-			name += "%";
-			name += interface_name;
-			
-			return name;
-		}
-		
-		std::optional<LocalAddress> local_address(msghdr *msg, int family)
+		std::optional<Address> Address::extract(msghdr *message, int family)
 		{
 			if (family == AF_INET) {
-				for (auto cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg)) {
+				for (auto cmsg = CMSG_FIRSTHDR(message); cmsg; cmsg = CMSG_NXTHDR(message, cmsg)) {
 					if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_PKTINFO) {
 						auto pktinfo = reinterpret_cast<in_pktinfo *>(CMSG_DATA(cmsg));
-						LocalAddress address;
-						address.interface_index = pktinfo->ipi_ifindex;
+						Address address;
 						address.length = sizeof(address.data.in);
 						address.data.in.sin_family = AF_INET;
 						address.data.in.sin_addr = pktinfo->ipi_addr;
@@ -65,11 +54,10 @@ namespace Protocol
 				}
 			}
 			else if (family == AF_INET6) {
-				for (auto cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg)) {
+				for (auto cmsg = CMSG_FIRSTHDR(message); cmsg; cmsg = CMSG_NXTHDR(message, cmsg)) {
 					if (cmsg->cmsg_level == IPPROTO_IPV6 && cmsg->cmsg_type == IPV6_PKTINFO) {
 						auto pktinfo = reinterpret_cast<in6_pktinfo *>(CMSG_DATA(cmsg));
-						LocalAddress address;
-						address.interface_index = pktinfo->ipi6_ifindex;
+						Address address;
 						address.length = sizeof(address.data.in6);
 						address.data.in6.sin6_family = AF_INET6;
 						address.data.in6.sin6_addr = pktinfo->ipi6_addr;
@@ -81,8 +69,86 @@ namespace Protocol
 			return {};
 		}
 		
+		std::vector<Address> Address::resolve(const char * host, const char * service, int family = AF_UNSPEC, int socktype = SOCK_DGRAM, int flags = AI_PASSIVE|AI_ADDRCONFIG)
+		{
+			std::vector<Address> addresses;
+			
+			addrinfo hints;
+			std::memset(&hints, 0, sizeof(hints));
+			
+			hints.ai_family = family;
+			hints.ai_socktype = socktype;
+			hints.ai_flags = flags;
+			
+			addrinfo * result = nullptr;
+			
+			if (getaddrinfo(host, service, &hints, &result) != 0) {
+				throw std::runtime_error("getaddrinfo");
+			}
+			
+			Defer free_result([&]{
+				freeaddrinfo(result);
+			});
+			
+			for (auto iterator = result; iterator; iterator = iterator->ai_next) {
+				addresses.emplace_back(*iterator->ai_addr, iterator->ai_addrlen);
+			}
+			
+			return addresses;
+		}
+		
+		int set_receive_ecn(int descriptor, int family) {
+			int tos = 1;
+			
+			switch (family) {
+			case AF_INET:
+				return setsockopt(descriptor, IPPROTO_IP, IP_RECVTOS, &tos, static_cast<socklen_t>(sizeof(tos)));
+			case AF_INET6:
+				return setsockopt(descriptor, IPPROTO_IPV6, IPV6_RECVTCLASS, &tos, static_cast<socklen_t>(sizeof(tos)));
+			}
+			
+			return 0;
+		}
+		
+		// Supported on Linux.
+		int set_ip_mtu_discover(int descriptor, int family) {
+#if defined(IP_MTU_DISCOVER) && defined(IPV6_MTU_DISCOVER)
+			int value;
+			
+			switch (family) {
+			case AF_INET:
+				value = IP_PMTUDISC_DO;
+				return setsockopt(descriptor, IPPROTO_IP, IP_MTU_DISCOVER, &value, static_cast<socklen_t>(sizeof(value)));
+			case AF_INET6:
+				value = IPV6_PMTUDISC_DO;
+				return setsockopt(descriptor, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &value, static_cast<socklen_t>(sizeof(value)));
+			}
+#endif
+			
+			return 0;
+		}
+		
+		// Supported on BSD.
+		int set_ip_dontfrag(int descriptor, int family) {
+#if defined(IP_DONTFRAG) && defined(IPV6_DONTFRAG)
+			int value = 1;
+			
+			switch (family) {
+			case AF_INET:
+				return setsockopt(descriptor, IPPROTO_IP, IP_DONTFRAG, &value, static_cast<socklen_t>(sizeof(value)));
+			case AF_INET6:
+				return setsockopt(descriptor, IPPROTO_IPV6, IPV6_DONTFRAG, &value, static_cast<socklen_t>(sizeof(value)));
+			}
+#endif
+			
+			return 0;
+		}
+		
 		Socket::Socket(int descriptor, const Address & address) : _descriptor(descriptor), _address(address)
 		{
+			set_receive_ecn(_descriptor, _address.family());
+			set_ip_mtu_discover(_descriptor, _address.family());
+			set_ip_dontfrag(_descriptor, _address.family());
 		}
 		
 		Socket::~Socket()
@@ -118,91 +184,17 @@ namespace Protocol
 			return ECN::UNSPECIFIED;
 		}
 		
-		void set_ecn(int descriptor, int family, ECN ecn) {
-			unsigned int tos = static_cast<unsigned int>(ecn);
+		int set_ecn(int descriptor, int family, ECN ecn) {
+			int tos = static_cast<unsigned int>(ecn);
 			
 			switch (family) {
 			case AF_INET:
-				if (setsockopt(descriptor, IPPROTO_IP, IP_TOS, &tos, static_cast<socklen_t>(sizeof(ecn))) == -1) {
-					throw std::runtime_error("set_ecn:setsockopt(IP_TOS): " + std::string(strerror(errno)));
-				}
-				break;
+				return setsockopt(descriptor, IPPROTO_IP, IP_TOS, &tos, static_cast<socklen_t>(sizeof(ecn)));
 			case AF_INET6:
-				if (setsockopt(descriptor, IPPROTO_IPV6, IPV6_TCLASS, &tos, static_cast<socklen_t>(sizeof(ecn))) == -1) {
-					throw std::runtime_error("set_ecn:setsockopt(IPV6_TCLASS): " + std::string(strerror(errno)));
-				}
-				break;
-			}
-		}
-		
-		void set_recv_ecn(int descriptor, int family) {
-			unsigned int tos = 1;
-			switch (family) {
-			case AF_INET:
-				if (setsockopt(descriptor, IPPROTO_IP, IP_RECVTOS, &tos, static_cast<socklen_t>(sizeof(tos))) == -1) {
-					throw std::runtime_error("set_recv_ecn:setsockopt(IP_RECVTOS)" + std::string(strerror(errno)));
-				}
-				break;
-			case AF_INET6:
-				if (setsockopt(descriptor, IPPROTO_IPV6, IPV6_RECVTCLASS, &tos, static_cast<socklen_t>(sizeof(tos))) == -1) {
-					throw std::runtime_error("set_recv_ecn:setsockopt(IPV6_RECVTCLASS)" + std::string(strerror(errno)));
-				}
-				break;
-			}
-		}
-
-		void set_ip_mtu_discover(int descriptor, int family) {
-#if defined(IP_MTU_DISCOVER) && defined(IPV6_MTU_DISCOVER)
-			int value;
-			
-			switch (family) {
-			case AF_INET:
-				value = IP_PMTUDISC_DO;
-				if (setsockopt(descriptor, IPPROTO_IP, IP_MTU_DISCOVER, &value, static_cast<socklen_t>(sizeof(value))) == -1) {
-					throw std::runtime_error("setsockopt: IP_MTU_DISCOVER" + std::string(strerror(errno)));
-				}
-				break;
-			case AF_INET6:
-				value = IPV6_PMTUDISC_DO;
-				if (setsockopt(descriptor, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &value, static_cast<socklen_t>(sizeof(value))) == -1) {
-					throw std::runtime_error("setsockopt: IPV6_MTU_DISCOVER" + std::string(strerror(errno)));
-				}
-				break;
-			}
-#endif
-		}
-
-		void set_ip_dontfrag(int descriptor, int family) {
-#if defined(IP_DONTFRAG) && defined(IPV6_DONTFRAG)
-			int value = 1;
-			
-			switch (family) {
-			case AF_INET:
-				if (setsockopt(descriptor, IPPROTO_IP, IP_DONTFRAG, &value, static_cast<socklen_t>(sizeof(value))) == -1) {
-					throw std::runtime_error("set_ip_dontfrag:setsockopt(IP_DONTFRAG): " + std::string(strerror(errno)));
-				}
-				break;
-			case AF_INET6:
-				if (setsockopt(descriptor, IPPROTO_IPV6, IPV6_DONTFRAG, &value, static_cast<socklen_t>(sizeof(value))) == -1) {
-					throw std::runtime_error("set_ip_dontfrag:setsockopt(IPV6_DONTFRAG): " + std::string(strerror(errno)));
-				}
-				break;
-			}
-#endif
-		}
-		
-		int create_udp_socket(int domain) {
-			auto descriptor = socket(domain, SOCK_DGRAM | SOCK_NONBLOCK, 0);
-			
-			if (descriptor == -1) {
-				throw std::runtime_error("socket: " + std::string(strerror(errno)));
+				return setsockopt(descriptor, IPPROTO_IPV6, IPV6_TCLASS, &tos, static_cast<socklen_t>(sizeof(ecn)));
 			}
 			
-			set_recv_ecn(descriptor, domain);
-			set_ip_mtu_discover(descriptor, domain);
-			set_ip_dontfrag(descriptor, domain);
-			
-			return descriptor;
+			return 0;
 		}
 		
 		Socket Socket::connect(const char *host, const char *service) {
@@ -251,7 +243,9 @@ namespace Protocol
 				.msg_iovlen = 1
 			};
 			
-			set_ecn(_descriptor, destination.addr->sa_family, ecn);
+			if (ecn != _ecn) {
+				set_ecn(_descriptor, destination.addr->sa_family, ecn);
+			}
 			
 			ssize_t result;
 			
@@ -294,7 +288,7 @@ namespace Protocol
 				throw std::runtime_error("recvmsg: " + std::string(strerror(errno)));
 			}
 			
-			ecn = get_ecn(&message, address.data.sa.sa_family);
+			_ecn = ecn = get_ecn(&message, address.data.sa.sa_family);
 			
 			return result;
 		}
