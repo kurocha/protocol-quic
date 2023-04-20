@@ -15,6 +15,9 @@
 #include <ngtcp2/ngtcp2_crypto.h>
 #include <ngtcp2/ngtcp2_crypto_picotls.h>
 
+#include <vector>
+#include <string>
+
 namespace Protocol
 {
 	namespace QUIC
@@ -34,9 +37,14 @@ namespace Protocol
 				void load_certificate_file(const char * path);
 				void load_private_key_file(const char * path);
 				
+				std::vector<std::string> protocols() {return _protocols;}
+				const std::vector<std::string> & protocols() const {return _protocols;}
+				
 			protected:
 				ptls_context_t _context;
 				ptls_openssl_sign_certificate_t _sign_certificate;
+				
+				std::vector<std::string> _protocols;
 			};
 		}
 	}

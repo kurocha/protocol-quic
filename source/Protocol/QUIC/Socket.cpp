@@ -184,34 +184,74 @@ namespace Protocol
 		Socket::Socket(Socket && other)
 		{
 			_descriptor = other._descriptor;
-			_address = other._address;
+			_local_address = other._local_address;
+			_remote_address = other._remote_address;
 			other._descriptor = -1;
 		}
 		
 		Socket & Socket::operator=(Socket && other)
 		{
 			_descriptor = other._descriptor;
-			_address = other._address;
+			_local_address = other._local_address;
+			_remote_address = other._remote_address;
 			other._descriptor = -1;
 			return *this;
 		}
 		
-		void Socket::bind(const Address & address)
+		const Address & Socket::local_address() const
 		{
-			if (::bind(_descriptor, &address.data.sa, address.length) < 0) {
-				throw std::system_error(errno, std::generic_category(), "bind");
+			if (!_local_address) {
+				sockaddr_storage storage;
+				
+				sockaddr * data = reinterpret_cast<sockaddr *>(&storage);
+				socklen_t size = sizeof(storage);
+				auto result = ::getsockname(_descriptor, data, &size);
+				
+				if (result == -1)
+					throw std::system_error(errno, std::generic_category(), "getsockname");
+				
+				_local_address.set(data, size);
 			}
 			
-			_address = address;
+			return _local_address;
 		}
 		
-		void Socket::connect(const Address & address)
+		const Address & Socket::remote_address() const
 		{
-			if (::connect(_descriptor, &address.data.sa, address.length) < 0) {
-				throw std::system_error(errno, std::generic_category(), "connect");
+			if (!_remote_address) {
+				sockaddr_storage storage;
+				sockaddr * data = reinterpret_cast<sockaddr *>(&storage);
+				socklen_t size = sizeof(storage);
+				
+				auto result = ::getpeername(_descriptor, data, &size);
+				
+				if (result == -1)
+					throw std::system_error(errno, std::generic_category(), "getpeername");
+				
+				_remote_address.set(data, size);
 			}
 			
-			_address = address;
+			return _remote_address;
+		}
+		
+		bool Socket::bind(const Address & address)
+		{
+			if (::bind(_descriptor, &address.data.sa, address.length) < 0) {
+				return false;
+			}
+			
+			_local_address = address;
+			return true;
+		}
+		
+		bool Socket::connect(const Address & address)
+		{
+			if (::connect(_descriptor, &address.data.sa, address.length) < 0) {
+				return false;
+			}
+			
+			_remote_address = address;
+			return true;
 		}
 		
 		ECN read_ecn(const std::uint8_t *data)

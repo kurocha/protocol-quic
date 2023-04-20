@@ -23,7 +23,7 @@ namespace Protocol
 			class ServerSession : public Session
 			{
 			public:
-				ServerSession();
+				ServerSession(ServerContext &server_context, ngtcp2_conn *connection);
 				virtual ~ServerSession();
 				
 			private:

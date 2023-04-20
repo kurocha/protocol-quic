@@ -7,11 +7,14 @@
 //
 
 #include "Connection.hpp"
+#include "Configuration.hpp"
 #include "Random.hpp"
 
 #include <chrono>
 #include <array>
+#include <ngtcp2/ngtcp2.h>
 #include <stdexcept>
+#include <system_error>
 
 namespace Protocol
 {
@@ -23,19 +26,36 @@ namespace Protocol
 			).count();
 		}
 		
-		ngtcp2_cid Connection::generate_cid(std::size_t length)
+		class Ngtcp2ErrorCategory : public std::error_category
 		{
-			assert(length <= NGTCP2_MAX_CIDLEN);
+		public:
+			virtual const char * name() const noexcept override {
+				return "ngtcp2";
+			}
 			
-			ngtcp2_cid cid;
-			cid.datalen = length;
+			virtual std::string message(int condition) const override {
+				return ngtcp2_strerror(condition);
+			}
+		};
+		
+		const std::error_category & ngtcp2_category()
+		{
+			static Ngtcp2ErrorCategory category;
 			
-			Random::generate_secure(cid.data, cid.datalen);
-			
-			return cid;
+			return category;
 		}
 		
-		Connection::Connection(ngtcp2_conn * connection) : _connection(connection)
+		void Connection::generate_cid(ngtcp2_cid * cid, std::size_t length)
+		{
+			assert(length <= NGTCP2_MAX_CIDLEN);
+			assert(cid);
+			
+			cid->datalen = length;
+			
+			Random::generate_secure(cid->data, cid->datalen);
+		}
+		
+		Connection::Connection(Configuration & configuration, ngtcp2_conn * connection) : _configuration(configuration), _connection(connection)
 		{
 			ngtcp2_connection_close_error_default(&_last_error);
 		}
@@ -46,7 +66,46 @@ namespace Protocol
 				ngtcp2_conn_del(_connection);
 		}
 		
-		int Connection::handshake_completed_callback(ngtcp2_conn *conn, void *user_data)
+		StreamID Connection::open_bidirectional_stream(void *user_data)
+		{
+			StreamID stream_id;
+			
+			auto result = ngtcp2_conn_open_bidi_stream(_connection, &stream_id, user_data);
+			
+			if (result != 0)
+				throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_open_bidi_stream");
+			
+			return stream_id;
+		}
+		
+		StreamID Connection::open_unidirectional_stream(void *user_data)
+		{
+			StreamID stream_id;
+			
+			auto result = ngtcp2_conn_open_uni_stream(_connection, &stream_id, user_data);
+			
+			if (result != 0)
+				throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_open_uni_stream");
+			
+			return stream_id;
+		}
+		
+		const ngtcp2_cid * Connection::client_initial_dcid()
+		{
+			return ngtcp2_conn_get_client_initial_dcid(_connection);
+		}
+		
+		std::vector<ngtcp2_cid> Connection::scids()
+		{
+			auto count = ngtcp2_conn_get_num_scid(_connection);
+			std::vector<ngtcp2_cid> result(count);
+			
+			ngtcp2_conn_get_scid(_connection, result.data());
+			
+			return result;
+		}
+		
+		int handshake_completed_callback(ngtcp2_conn *conn, void *user_data)
 		{
 			try {
 				reinterpret_cast<Connection*>(user_data)->handshake_completed();
@@ -59,7 +118,7 @@ namespace Protocol
 		{
 		}
 		
-		int Connection::receive_stream_data_callback(ngtcp2_conn *conn, uint32_t flags, int64_t stream_id, uint64_t offset, const uint8_t *data, size_t size, void *user_data, void *stream_user_data)
+		int receive_stream_data_callback(ngtcp2_conn *conn, uint32_t flags, int64_t stream_id, uint64_t offset, const uint8_t *data, size_t size, void *user_data, void *stream_user_data)
 		{
 			try {
 				reinterpret_cast<Connection*>(user_data)->receive_stream_data(flags, stream_id, data, size, stream_user_data);
@@ -70,6 +129,22 @@ namespace Protocol
 		
 		void Connection::receive_stream_data(StreamDataFlags flags, StreamID stream_id, const Byte *buffer, std::size_t length, void * user_data)
 		{
+		}
+		
+		void Connection::write_stream_data(StreamID stream_id, const Byte *buffer, std::size_t length, StreamDataFlags flags)
+		{
+			ngtcp2_path_storage path_storage;
+			ngtcp2_path_storage_zero(&path_storage);
+			
+			ngtcp2_pkt_info packet_info;
+			std::array<Byte, 1024*64> packet;
+			ngtcp2_ssize written_length = 0;
+			
+			auto result = ngtcp2_conn_write_stream(_connection, &path_storage.path, &packet_info, packet.data(), packet.size(), &written_length, flags, stream_id, buffer, length, timestamp());
+			
+			if (result < 0) {
+				
+			}
 		}
 		
 		void Connection::receive_from(Socket & socket, std::size_t count)
@@ -83,7 +158,7 @@ namespace Protocol
 				auto length = socket.receive_packet(buffer.data(), buffer.size(), remote_address, ecn);
 				
 				auto const path = ngtcp2_path{
-					.local = socket.address(),
+					.local = socket.local_address(),
 					.remote = remote_address,
 					.user_data = reinterpret_cast<void*>(&socket),
 				};
@@ -147,16 +222,74 @@ namespace Protocol
 			}
 		}
 		
-		Socket & Connection::socket_for(const Address & remote_address)
+		void random_callback(std::uint8_t *dest, std::size_t size, const ngtcp2_rand_ctx *context)
 		{
-			auto current_path = ngtcp2_conn_get_path(_connection);
-			auto current_socket = static_cast<Socket *>(current_path->user_data);
+			auto & random = *reinterpret_cast<Random*>(context->native_handle);
+			random.generate(dest, size);
+		}
+		
+		int get_new_connection_id_callback(ngtcp2_conn *conn, ngtcp2_cid *cid, uint8_t *token, size_t cidlen, void *user_data)
+		{
+			auto & connection = *reinterpret_cast<Connection*>(user_data);
 			
-			if (current_socket->address() == remote_address) {
-				return *current_socket;
+			try {
+				connection.generate_connection_id(cid, cidlen, token);
+			} catch (...) {
+				return NGTCP2_ERR_CALLBACK_FAILURE;
 			}
 			
+			return 0;
+		}
+		
+		void Connection::setup(ngtcp2_callbacks *callbacks, ngtcp2_settings *settings, ngtcp2_transport_params *params)
+		{
+			ngtcp2_settings_default(settings);
+			ngtcp2_transport_params_default(params);
 			
+			// Setup the random data generator:
+			settings->rand_ctx.native_handle = reinterpret_cast<void*>(&_random);
+			callbacks->rand = random_callback;
+			
+			callbacks->client_initial = ngtcp2_crypto_client_initial_cb;
+			callbacks->recv_crypto_data = ngtcp2_crypto_recv_crypto_data_cb;
+			callbacks->encrypt = ngtcp2_crypto_encrypt_cb;
+			callbacks->decrypt = ngtcp2_crypto_decrypt_cb;
+			callbacks->hp_mask = ngtcp2_crypto_hp_mask_cb;
+			callbacks->recv_retry = ngtcp2_crypto_recv_retry_cb;
+			callbacks->get_new_connection_id = get_new_connection_id_callback;
+			callbacks->update_key = ngtcp2_crypto_update_key_cb;
+			callbacks->delete_crypto_aead_ctx = ngtcp2_crypto_delete_crypto_aead_ctx_cb;
+			callbacks->delete_crypto_cipher_ctx = ngtcp2_crypto_delete_crypto_cipher_ctx_cb;
+			callbacks->get_path_challenge_data = ngtcp2_crypto_get_path_challenge_data_cb;
+			callbacks->version_negotiation = ngtcp2_crypto_version_negotiation_cb;
+			
+			callbacks->handshake_completed = handshake_completed_callback;
+			callbacks->recv_stream_data = receive_stream_data_callback;
+			
+			settings->initial_ts = timestamp();
+		}
+		
+		void Connection::generate_connection_id(ngtcp2_cid *cid, std::size_t cidlen, uint8_t *token)
+		{
+			Random::generate_secure(cid->data, cidlen);
+			cid->datalen = cidlen;
+			
+			auto &static_secret = _configuration.static_secret;
+			
+			if (ngtcp2_crypto_generate_stateless_reset_token(token, static_secret.data(), static_secret.size(), cid) != 0) {
+				throw std::runtime_error("Failed to generate stateless reset token!");
+			}
+		}
+		
+		void Connection::set_last_error(int result)
+		{
+			if (!_last_error.error_code) {
+				if (result == NGTCP2_ERR_CRYPTO) {
+					ngtcp2_connection_close_error_set_transport_error_tls_alert(&_last_error, ngtcp2_conn_get_tls_alert(_connection), nullptr, 0);
+				} else {
+					ngtcp2_connection_close_error_set_transport_error_liberr(&_last_error, result, nullptr, 0);
+				}
+			}
 		}
 	}
 }

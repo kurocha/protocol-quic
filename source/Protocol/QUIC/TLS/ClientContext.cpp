@@ -26,6 +26,10 @@ namespace Protocol
 					throw std::runtime_error("ngtcp2_crypto_picotls_configure_client_context failed");
 				}
 			}
+			
+			ClientContext::~ClientContext()
+			{
+			}
 		}
 	}
 }

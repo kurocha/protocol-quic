@@ -17,76 +17,47 @@ namespace Protocol
 {
 	namespace QUIC
 	{
-		void random_callback(std::uint8_t *dest, std::size_t size, const ngtcp2_rand_ctx *context)
+		void Client::setup(TLS::ClientContext & tls_context, const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *params)
 		{
-			auto & random = *reinterpret_cast<Random*>(context->native_handle);
-			random.generate(dest, size);
-		}
-		
-		int get_new_connection_id_callback(ngtcp2_conn *conn, ngtcp2_cid *cid, uint8_t *token, size_t cidlen, void *user_data)
-		{
-			auto & client = *reinterpret_cast<Client*>(user_data);
+			auto callbacks = ngtcp2_callbacks{};
+			Connection::setup(&callbacks, settings, params);
 			
-			try {
-				client.generate_connection_id(cid, cidlen, token);
-			} catch (...) {
-				return NGTCP2_ERR_CALLBACK_FAILURE;
-			}
-			
-			return 0;
-		}
-		
-		void Client::setup(const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *transport_parameters)
-		{
-			Random::generate_secret(_static_secret);
-			settings->rand_ctx.native_handle = reinterpret_cast<void*>(&_random);
-			
-			auto callbacks = ngtcp2_callbacks{
-				.client_initial = ngtcp2_crypto_client_initial_cb,
-				.recv_crypto_data = ngtcp2_crypto_recv_crypto_data_cb,
-				.encrypt = ngtcp2_crypto_encrypt_cb,
-				.decrypt = ngtcp2_crypto_decrypt_cb,
-				.hp_mask = ngtcp2_crypto_hp_mask_cb,
-				.recv_stream_data = Connection::receive_stream_data_callback,
-				.recv_retry = ngtcp2_crypto_recv_retry_cb,
-				.rand = random_callback,
-				.get_new_connection_id = get_new_connection_id_callback,
-				.update_key = ngtcp2_crypto_update_key_cb,
-				.delete_crypto_aead_ctx = ngtcp2_crypto_delete_crypto_aead_ctx_cb,
-				.delete_crypto_cipher_ctx = ngtcp2_crypto_delete_crypto_cipher_ctx_cb,
-				.get_path_challenge_data = ngtcp2_crypto_get_path_challenge_data_cb,
-				.version_negotiation = ngtcp2_crypto_version_negotiation_cb,
-			};
-			
-			if (ngtcp2_conn_client_new(&_connection, dcid, scid, path, chosen_version, &callbacks, settings, transport_parameters, nullptr, this)) {
+			if (ngtcp2_conn_client_new(&_connection, dcid, scid, path, chosen_version, &callbacks, settings, params, nullptr, this)) {
 				throw std::runtime_error("Failed to create QUIC client connection!");
 			}
 			
-			ngtcp2_conn_set_tls_native_handle(_connection, _tls_context->native_handle());
+			_tls_session = std::make_unique<TLS::ClientSession>(tls_context, _connection);
 		}
 		
-		Client::Client(std::shared_ptr<TLS::ClientContext> tls_context, const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *transport_parameters) : _tls_context(tls_context), _chosen_version(chosen_version)
+		Client::Client(Configuration & configuration, TLS::ClientContext & tls_context, Socket &socket, const Address &remote_address, std::uint32_t chosen_version) : Connection(configuration)
 		{
-			setup(dcid, scid, path, chosen_version, settings, transport_parameters);
-		}
-		
-		// Client::Client(std::shared_ptr<TLS::ClientContext> tls_context)
-		// {
-		// 	auto dcid = generate_cid();
-		// 	auto scid = generate_cid();
+			ngtcp2_cid dcid, scid;
+			generate_cid(&dcid);
+			generate_cid(&scid);
 			
-		// 	setup(&dcid, &scid, path, chosen_version, settings, transport_parameters);
-		// }
+			ngtcp2_path path = {
+				.local = socket.local_address(),
+				.remote = remote_address,
+				.user_data = &socket,
+			};
+			
+			auto settings = ngtcp2_settings{};
+			ngtcp2_settings_default(&settings);
+			
+			auto params = ngtcp2_transport_params{};
+			ngtcp2_transport_params_default(&params);
+			
+			setup(tls_context, &dcid, &scid, &path, chosen_version, &settings, &params);
+		}
 		
 		Client::~Client()
 		{
 		}
 		
-		void Client::connect(const Address & address)
+		void Client::connect()
 		{
-			Socket & socket = _sockets.emplace_back(address.family(), SOCK_DGRAM, IPPROTO_UDP);
-			
-			socket.connect(address);
+			auto path = ngtcp2_conn_get_path(_connection);
+			Socket & socket = *static_cast<Socket *>(path->user_data);
 			
 			while (socket) {
 				this->receive_from(socket);
@@ -97,15 +68,5 @@ namespace Protocol
 		// {
 		// 	ngtcp2_conn_decode_early_transport_params(_connection, buffer.data(), buffer.size());
 		// }
-		
-		void Client::generate_connection_id(ngtcp2_cid *cid, std::size_t cidlen, uint8_t *token)
-		{
-			Random::generate_secure(cid->data, cidlen);
-			cid->datalen = cidlen;
-			
-			if (ngtcp2_crypto_generate_stateless_reset_token(token, _static_secret.data(), _static_secret.size(), cid) != 0) {
-				throw std::runtime_error("Failed to generate stateless reset token!");
-			}
-		}
 	}
 }

@@ -23,19 +23,13 @@ namespace Protocol
 			class ClientSession : public Session
 			{
 			public:
-				ClientSession(ClientContext &client_context, ngtcp2_conn *connection, std::string_view server_name);
+				ClientSession(ClientContext &client_context, ngtcp2_conn *connection);
 				virtual ~ClientSession();
 				
 				const ngtcp2_conn * connection() const {return _connection;}
 				ngtcp2_conn * connection() {return _connection;}
 				
 				bool early_data_accepted() const;
-				
-			private:
-				std::vector<ptls_raw_extension_t> _extensions;
-				
-				ngtcp2_conn *_connection;
-				ngtcp2_crypto_conn_ref _crypto_connection_reference;
 			};
 		}
 	}

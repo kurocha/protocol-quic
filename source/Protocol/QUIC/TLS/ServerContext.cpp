@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <memory>
 #include <array>
+#include <stdexcept>
 
 namespace Protocol
 {
@@ -124,8 +125,8 @@ namespace Protocol
 			}
 			
 			int encrypt_ticket_callback(ptls_encrypt_ticket_t *encrypt_ticket, ptls_t *ptls, int is_encrypt, ptls_buffer_t *dst, ptls_iovec_t src) {
-				auto handle = Handle::get(ptls);
-				auto connection = handle->ngtcp2_connection();
+				auto session = Session::get(ptls);
+				auto connection = session->connection();
 				
 				std::uint32_t version;
 				
@@ -182,6 +183,10 @@ namespace Protocol
 			
 			ServerContext::ServerContext() : Context()
 			{
+				if (ngtcp2_crypto_picotls_configure_server_context(&_context) != 0) {
+					throw std::runtime_error("ngtcp2_crypto_picotls_configure_client_context failed!");
+				}
+				
 				_context.on_client_hello =  &on_client_hello;
 				_context.ticket_lifetime = 86400;
 				_context.require_dhe_on_psk = 1;

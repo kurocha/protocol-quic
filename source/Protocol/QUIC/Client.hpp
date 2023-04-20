@@ -9,7 +9,7 @@
 #pragma once
 
 #include "Connection.hpp"
-#include "Random.hpp"
+#include "Configuration.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -23,33 +23,22 @@ namespace Protocol
 	{
 		class Client : public Connection
 		{
-			void setup(const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *transport_parameters);
+			void setup(TLS::ClientContext & tls_context, const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *params);
 			
 		public:
-			Client(std::shared_ptr<TLS::ClientContext> tls_context, const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *transport_parameters);
-			// Client(std::shared_ptr<TLS::ClientContext> tls_context);
+			Client(Configuration & configuration, TLS::ClientContext & tls_context, Socket &socket, const Address &remote_address, std::uint32_t chosen_version = NGTCP2_PROTO_VER_V1);
 			virtual ~Client();
 			
-			void connect(const Address & address);
-			
-			ngtcp2_conn* native_handle() {return _connection;}
+			void connect();
 			
 			std::uint64_t maximum_local_unidirectional_streams() const {
 				return ngtcp2_conn_get_max_local_streams_uni(_connection);
 			}
 			
-			// virtual void decode_early_transport_parameters(std::string_view data);
-			
-			virtual void generate_connection_id(ngtcp2_cid *cid, std::size_t cidlen, uint8_t *token);
-			
 		protected:
-			std::shared_ptr<TLS::ClientContext> _tls_context;
-			
-			Random _random;
-			std::array<uint8_t, 32> _static_secret;
+			std::unique_ptr<TLS::ClientSession> _tls_session;
 			
 			std::uint32_t _chosen_version;
-			
 		};
 	}
 }

@@ -30,10 +30,10 @@ build-files:
   :commit: 2e5392ef4e171885b621288c7829e5160f1255bf
   :branch: master
 executor-unix:
-  :commit: 36fe76d003e45c97cfb1d9d2726c17a33f28cad5
+  :commit: 91f433a59550b826f7bc69e36d1df9c6e5576575
   :branch: master
 executor-lldb:
-  :commit: 75f65ccadcf08aaed5694870c31556fbd656427a
+  :commit: 7f66b043b946b6859897ea01eb140a276005aacc
   :branch: master
 streams:
   :commit: 2f9141de26e5331ab35fc91c03ab6a60317bbf7c
@@ -82,4 +82,7 @@ coroutine:
   :branch: master
 coroutine-arm64:
   :commit: aada7d279a6c2ae79b6f8f3e45cfa44de3c432fe
+  :branch: master
+coroutine-amd64:
+  :commit: e61fac809acde9fb33a6d3ea5bdd274a34209ac7
   :branch: master

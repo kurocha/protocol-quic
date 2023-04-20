@@ -17,12 +17,6 @@ namespace Protocol
 	{
 		namespace TLS
 		{
-			static ngtcp2_conn* get_connection(ngtcp2_crypto_conn_ref *reference) {
-  			auto client_session = static_cast<ClientSession *>(reference->user_data);
-				
-				return client_session->connection();
-			}
-			
 			uint8_t PROTOCOL_H3[] = {'h', '3'};
 			
 			auto NEGOTIATED_PROTOCOLS = std::array<ptls_iovec_t, 1>{{
@@ -32,7 +26,7 @@ namespace Protocol
 				},
 			}};
 			
-			ClientSession::ClientSession(ClientContext &client_context, ngtcp2_conn *connection, std::string_view server_name) : Session(), _connection(connection), _crypto_connection_reference{get_connection, this}
+			ClientSession::ClientSession(ClientContext &client_context, ngtcp2_conn *connection) : Session(client_context, connection)
 			{
 				_context.ptls = ptls_client_new(client_context.native_handle());
 				
@@ -40,15 +34,7 @@ namespace Protocol
 					throw std::runtime_error("Could not create client session");
 				}
 				
-				*ptls_get_data_ptr(_context.ptls) = &_crypto_connection_reference;
-				
-				_extensions.push_back({
-					.type = UINT16_MAX,
-				});
-				
-				_extensions.push_back({
-					.type = UINT16_MAX,
-				});
+				set_connection_reference();
 				
 				auto handshake_properties = _context.handshake_properties;
 				handshake_properties.additional_extensions = _extensions.data();
@@ -58,9 +44,7 @@ namespace Protocol
 				}
 				
 				handshake_properties.client.negotiated_protocols.list = NEGOTIATED_PROTOCOLS.data();
-  			handshake_properties.client.negotiated_protocols.count = NEGOTIATED_PROTOCOLS.size();
-				
-				ptls_set_server_name(_context.ptls, server_name.data(), server_name.size());
+				handshake_properties.client.negotiated_protocols.count = NEGOTIATED_PROTOCOLS.size();
 			}
 			
 			ClientSession::~ClientSession()

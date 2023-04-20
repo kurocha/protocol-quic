@@ -13,6 +13,7 @@
 #include <string>
 #include <optional>
 #include <vector>
+#include <cstring>
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -48,6 +49,17 @@ namespace Protocol
 			Address(const Destination & destination) : Address(destination.addr, destination.addrlen) {}
 			Address(const addrinfo * addr) : Address(addr->ai_addr, addr->ai_addrlen) {}
 			
+			void set(const ngtcp2_sockaddr * sockaddr, ngtcp2_socklen length)
+			{
+				std::copy_n(reinterpret_cast<const std::uint8_t *>(sockaddr), length, reinterpret_cast<std::uint8_t *>(&data));
+				this->length = length;
+			}
+			
+			Address & operator=(const Address & other) {
+				set(&other.data.sa, other.length);
+				return *this;
+			}
+			
 			operator bool() const {return length > 0;}
 			
 			operator Destination() {return {&data.sa, length};}
@@ -77,7 +89,7 @@ namespace Protocol
 		class Socket
 		{
 		public:
-			Socket(int domain, int type = SOCK_DGRAM, int protocol = 0);
+			Socket(int domain, int type = SOCK_DGRAM, int protocol = IPPROTO_UDP);
 			~Socket();
 			
 			Socket(Socket && other);
@@ -86,8 +98,13 @@ namespace Protocol
 			Socket(const Socket &) = delete;
 			Socket & operator=(const Socket &) = delete;
 			
-			void bind(const Address & address);
-			void connect(const Address & address);
+			int descriptor() const {return _descriptor;}
+			
+			const Address & local_address() const;
+			const Address & remote_address() const;
+			
+			bool bind(const Address & address);
+			bool connect(const Address & address);
 			
 			void close() {
 				if (_descriptor >= 0) {
@@ -98,9 +115,6 @@ namespace Protocol
 			
 			operator bool() const {return _descriptor >= 0;}
 			
-			int descriptor() const {return _descriptor;}
-			const Address & address() const {return _address;}
-			
 			size_t send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn = ECN::UNSPECIFIED);
 			
 			// Address is the remote address that sent the packet.
@@ -109,7 +123,7 @@ namespace Protocol
 		private:
 			int _descriptor = -1;
 			// The local address we are bound to.
-			Address _address;
+			mutable Address _local_address, _remote_address;
 			
 			ECN _ecn = ECN::UNSPECIFIED;
 		};

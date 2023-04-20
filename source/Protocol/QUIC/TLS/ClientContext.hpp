@@ -20,6 +20,7 @@ namespace Protocol
 			{
 			public:
 				ClientContext();
+				virtual ~ClientContext();
 			};
 		}
 	}

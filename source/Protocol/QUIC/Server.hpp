@@ -12,21 +12,31 @@
 
 #include "Connection.hpp"
 #include "TLS/ServerSession.hpp"
+#include "ngtcp2/ngtcp2.h"
 
 namespace Protocol
 {
 	namespace QUIC
 	{
+		class Binding;
+		
 		class Server : public Connection
 		{
+			void setup(TLS::ServerContext & tls_context, const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, uint32_t client_chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *params, const ngtcp2_mem *mem = nullptr);
 		public:
-			Server(std::shared_ptr<TLS::ServerContext> tls_context);
+			Server(Binding * binding, Configuration & configuration, TLS::ServerContext & tls_context, Socket & socket, const Address & remote_address, const ngtcp2_pkt_hd & packet_header);
 			virtual ~Server();
 			
-			void listen(const Address & address);
+			void process_packet(Socket & socket, const Address & remote_address, const Byte *data, std::size_t length, ECN ecn);
 			
-		private:
-			std::shared_ptr<TLS::ServerContext> _tls_context;
+		protected:
+			void drain();
+			void close();
+			
+			Binding * _binding;
+			std::unique_ptr<TLS::ServerSession> _tls_session;
+			
+			ngtcp2_cid _scid;
 		};
 	}
 }
