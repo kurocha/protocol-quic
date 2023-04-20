@@ -46,8 +46,6 @@ namespace Protocol
 			{
 				ngtcp2_crypto_picotls_deconfigure_session(&_context);
 				
-				delete[] _context.handshake_properties.additional_extensions;
-				
 				if (_context.ptls) {
 					ptls_free(_context.ptls);
 				}

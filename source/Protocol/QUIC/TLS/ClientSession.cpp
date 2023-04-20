@@ -17,38 +17,29 @@ namespace Protocol
 	{
 		namespace TLS
 		{
-			uint8_t PROTOCOL_H3[] = {'h', '3'};
-			
-			auto NEGOTIATED_PROTOCOLS = std::array<ptls_iovec_t, 1>{{
-				{
-				.base = PROTOCOL_H3,
-				.len = sizeof(PROTOCOL_H3),
-				},
-			}};
-			
-			ClientSession::ClientSession(ClientContext &client_context, ngtcp2_conn *connection) : Session(client_context, connection)
+			ClientSession::ClientSession(ClientContext &client_context, ngtcp2_conn *connection) : Session(client_context, connection), _negotiated_protocols(client_context.protocols())
 			{
 				_context.ptls = ptls_client_new(client_context.native_handle());
 				
 				if (_context.ptls == nullptr) {
-					throw std::runtime_error("Could not create client session");
+					throw std::runtime_error("Could not create client session!");
 				}
 				
 				set_connection_reference();
 				
 				auto handshake_properties = _context.handshake_properties;
-				handshake_properties.additional_extensions = _extensions.data();
+				handshake_properties.client.negotiated_protocols.list = _negotiated_protocols.names.data();
+				handshake_properties.client.negotiated_protocols.count = _negotiated_protocols.names.size();
+				setup_extensions();
 				
-				if (ngtcp2_crypto_picotls_configure_client_session(&_context, connection) != 0) {
-					throw std::runtime_error("Could not configure client session");
+				if (ngtcp2_crypto_picotls_configure_client_session(&_context, connection)) {
+					throw std::runtime_error("Could not configure client session!");
 				}
-				
-				handshake_properties.client.negotiated_protocols.list = NEGOTIATED_PROTOCOLS.data();
-				handshake_properties.client.negotiated_protocols.count = NEGOTIATED_PROTOCOLS.size();
 			}
 			
 			ClientSession::~ClientSession()
 			{
+				
 			}
 			
 			bool ClientSession::early_data_accepted() const {

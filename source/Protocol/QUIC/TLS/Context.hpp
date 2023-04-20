@@ -24,6 +24,14 @@ namespace Protocol
 	{
 		namespace TLS
 		{
+			struct Protocols
+			{
+				Protocols(const std::vector<std::string> & protocols);
+				~Protocols();
+				
+				std::vector<ptls_iovec_t> names;
+			};
+			
 			class Context
 			{
 			public:

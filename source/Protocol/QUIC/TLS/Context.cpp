@@ -7,6 +7,7 @@
 //
 
 #include "Context.hpp"
+#include "picotls.h"
 
 #include <openssl/pem.h>
 #include <stdexcept>
@@ -18,6 +19,27 @@ namespace Protocol
 	{
 		namespace TLS
 		{
+			Protocols::Protocols(const std::vector<std::string> & protocols)
+			{
+				for (auto & protocol : protocols) {
+					ptls_iovec_t name = {
+						.base = new uint8_t[protocol.size()],
+						.len = protocol.size(),
+					};
+					
+					std::memcpy(name.base, protocol.data(), protocol.size());
+					
+					names.push_back(name);
+				}
+			}
+			
+			Protocols::~Protocols()
+			{
+				for (auto & name : names) {
+					delete[] name.base;
+				}
+			}
+			
 			ptls_key_exchange_algorithm_t *DEFAULT_KEY_EXCHANGES[] = {
 				&ptls_openssl_x25519,
 				&ptls_openssl_secp256r1,

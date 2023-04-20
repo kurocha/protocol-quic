@@ -1,30 +1,54 @@
 ---
-generate-project:
-  :commit: 2515e20b576c1a7dc5c5d2c1e14dea06ff5159ab
-  :branch: master
-generate-template:
-  :commit: ad0dcfb6da64cc0508b71916b30e1050c82ecea7
-  :branch: master
 platforms:
   :commit: 53bfdd34201790980ba8f4c335dbf659d038eb06
   :branch: master
 unit-test:
   :commit: b02cb3d26fffb158f111aade1bbd196f4e0aae89
   :branch: master
+generate-template:
+  :commit: ad0dcfb6da64cc0508b71916b30e1050c82ecea7
+  :branch: master
 generate-cpp-class:
   :commit: b8996bd1404904a737b76d6893fc9f9bf78da540
   :branch: master
+build-compile-commands:
+  :commit: 1c4b18f86d45426d7dd284c28bc53837e5694b6c
+  :branch: main
+scheduler:
+  :commit: 1fcf8b705bf5dbc3b27b0c3f3406d760a47d2437
+  :branch: main
+nghttp3:
+  :commit: 735fd39749ec5efbaae9de62fa78538c09007b7c
+  :branch: main
+ngtcp2:
+  :commit: 8cea50a8c2b57a9337fc0b3ace31c6799111bf0d
+  :branch: main
+build-make:
+  :commit: 50998307f3d1f462c2bda1999b42b2ea8aeb4b15
+  :branch: master
+build-cmake:
+  :commit: 6558fdad5bbb475f0fa5584ff773de8f12ff232e
+  :branch: master
+picotls:
+  :commit: 57803ad4f620cfd3d4a40de7389f0980f3ca19e8
+  :branch: main
+openssl:
+  :commit: 2f48d686aaaf20dc6d7e8a277803657eb5951530
+  :branch: main
 variants:
   :commit: f6a26a8ac3a47a23a213cbd15da2183239d394d1
   :branch: master
-platform-linux:
-  :commit: c3c5cbf90d26d23c6137def781cd997ddca5e51a
+platform-darwin-osx:
+  :commit: b3abd55300d433236f97f3450fe05cab7c865214
+  :branch: master
+platform-darwin-ios:
+  :commit: c81ccc5ee73cb1c6ae31e378148c4cb8c9f8759e
   :branch: master
 build-clang:
   :commit: 1c9be15a63c149f6decf8d0599b34755aa3b0979
   :branch: master
-build-linux:
-  :commit: cbc8c52c2ca2fc75761e545c83429ef34e4cd4fe
+build-darwin:
+  :commit: 0d68478a7754741dd5d360f70294161efdee030d
   :branch: master
 build-files:
   :commit: 2e5392ef4e171885b621288c7829e5160f1255bf
@@ -33,56 +57,8 @@ executor-unix:
   :commit: 91f433a59550b826f7bc69e36d1df9c6e5576575
   :branch: master
 executor-lldb:
-  :commit: 7f66b043b946b6859897ea01eb140a276005aacc
+  :commit: 193ba0b15c532d2745b0f0bfb05cd9581e869555
   :branch: master
 streams:
   :commit: 2f9141de26e5331ab35fc91c03ab6a60317bbf7c
-  :branch: master
-build-compile-commands:
-  :commit: a2953169abbb896e7f0b5e8ac41fc89edd95d4b4
-  :branch: main
-nghttp3:
-  :commit: 735fd39749ec5efbaae9de62fa78538c09007b7c
-  :branch: main
-ngtcp2:
-  :commit: 8cea50a8c2b57a9337fc0b3ace31c6799111bf0d
-  :branch: main
-picotls:
-  :commit: 57803ad4f620cfd3d4a40de7389f0980f3ca19e8
-  :branch: main
-openssl:
-  :commit: 2f48d686aaaf20dc6d7e8a277803657eb5951530
-  :branch: main
-build-make:
-  :commit: 50998307f3d1f462c2bda1999b42b2ea8aeb4b15
-  :branch: master
-build-cmake:
-  :commit: 6558fdad5bbb475f0fa5584ff773de8f12ff232e
-  :branch: master
-platform-darwin-osx:
-  :commit: b3abd55300d433236f97f3450fe05cab7c865214
-  :branch: master
-platform-darwin-ios:
-  :commit: c81ccc5ee73cb1c6ae31e378148c4cb8c9f8759e
-  :branch: master
-build-darwin:
-  :commit: 0d68478a7754741dd5d360f70294161efdee030d
-  :branch: master
-scheduler:
-  :commit: 2031f5cc8124f5f91ef202ebaefdf37afad5f837
-  :branch: main
-concurrent:
-  :commit: 82ea9829ba71eb32d82df854be7b15c8cc88c993
-  :branch: master
-time:
-  :commit: 795a5514b6be74bb81604e08257eec44444a745d
-  :branch: master
-coroutine:
-  :commit: 428204db9f5485d1565884c218933fd16833b439
-  :branch: master
-coroutine-arm64:
-  :commit: aada7d279a6c2ae79b6f8f3e45cfa44de3c432fe
-  :branch: master
-coroutine-amd64:
-  :commit: e61fac809acde9fb33a6d3ea5bdd274a34209ac7
   :branch: master

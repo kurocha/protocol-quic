@@ -30,6 +30,9 @@ namespace Protocol
 				ngtcp2_conn * connection() {return _connection;}
 				
 				bool early_data_accepted() const;
+			
+			protected:
+				Protocols _negotiated_protocols;
 			};
 		}
 	}
