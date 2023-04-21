@@ -29,7 +29,7 @@ namespace Protocol
 			Client(Configuration & configuration, TLS::ClientContext & tls_context, Socket &socket, const Address &remote_address, std::uint32_t chosen_version = NGTCP2_PROTO_VER_V1);
 			virtual ~Client();
 			
-			void connect();
+			virtual void connect();
 			
 			std::uint64_t maximum_local_unidirectional_streams() const {
 				return ngtcp2_conn_get_max_local_streams_uni(_connection);

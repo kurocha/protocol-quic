@@ -42,6 +42,8 @@ namespace Protocol
 			// Process a single incoming packet from a given remote address.
 			void process_packet(Socket & socket, const Address &remote_address, const Byte * data, std::size_t length, ECN ecn, ngtcp2_version_cid &version_cid);
 			
+			void write_packets();
+			
 		protected:
 			Configuration & _configuration;
 			TLS::ServerContext & _tls_context;
@@ -49,7 +51,7 @@ namespace Protocol
 			void send_version_negotiation(Socket & socket, ngtcp2_version_cid &version_cid, const Address &remote_address);
 			
 		private:
-			std::vector<Socket> _sockets;
+			std::vector<std::unique_ptr<Socket>> _sockets;
 			
 			// Associates a connection ID with a server instance:
 			std::unordered_map<std::string, Server *> _servers;

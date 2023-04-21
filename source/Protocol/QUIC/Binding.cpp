@@ -25,6 +25,7 @@ namespace Protocol
 		
 		Binding::~Binding()
 		{
+			std::cerr << "Binding going out of scope..." << std::endl;
 		}
 		
 		std::string cid_key(const Byte * cid, std::size_t length)
@@ -54,11 +55,22 @@ namespace Protocol
 			delete server;
 		}
 		
+		void Binding::write_packets()
+		{
+			for (auto & server : _servers) {
+				server.second->write_packets();
+			}
+		}
+		
 		void Binding::listen(const Address &address)
 		{
-			Socket & socket = _sockets.emplace_back(address.family());
+			Socket *socket = _sockets.emplace_back(
+				std::make_unique<Socket>(address.family())
+			).get();
 			
-			if (!socket.bind(address)) {
+			socket->annotate("binding");
+			
+			if (!socket->bind(address)) {
 				throw std::runtime_error("Could not bind to address!");
 			}
 			
@@ -66,17 +78,17 @@ namespace Protocol
 			ECN ecn = ECN::UNSPECIFIED;
 			std::array<Byte, 1024*64> buffer;
 			
-			while (socket) {
-				auto length = socket.receive_packet(buffer.data(), buffer.size(), remote_address, ecn);
+			while (*socket) {
+				auto length = socket->receive_packet(buffer.data(), buffer.size(), remote_address, ecn);
 				
 				ngtcp2_version_cid version_cid;
 				auto result = ngtcp2_pkt_decode_version_cid(&version_cid, buffer.data(), length, DEFAULT_SCID_LENGTH);
 				
 				if (result == 0) {
-					process_packet(socket, remote_address, buffer.data(), length, ecn, version_cid);
+					process_packet(*socket, remote_address, buffer.data(), length, ecn, version_cid);
 				}
 				else if (result == NGTCP2_ERR_VERSION_NEGOTIATION) {
-					send_version_negotiation(socket, version_cid, remote_address);
+					send_version_negotiation(*socket, version_cid, remote_address);
 				}
 				else {
 					std::cerr << "listen: " << ngtcp2_strerror(result) << std::endl;

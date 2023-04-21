@@ -22,6 +22,9 @@ namespace Protocol
 			auto callbacks = ngtcp2_callbacks{};
 			Connection::setup(&callbacks, settings, params);
 			
+			params->original_dcid = _scid;
+			params->original_dcid_present = 1;
+			
 			if (ngtcp2_conn_server_new(&_connection, dcid, scid, path, client_chosen_version, &callbacks, settings, params, mem, this)) {
 				throw std::runtime_error("Failed to create QUIC server connection!");
 			}

@@ -94,9 +94,8 @@ namespace Protocol
 			
 			void Session::setup_extensions()
 			{
-				_extensions.push_back({
-					.type = UINT16_MAX,
-				});
+				_extensions.push_back({.type = UINT16_MAX,});
+				_extensions.push_back({.type = UINT16_MAX,});
 				
 				// An optional list of additional extensions to send either in CH or EE, terminated by `type == UINT16_MAX`:
 				_context.handshake_properties.additional_extensions = _extensions.data();

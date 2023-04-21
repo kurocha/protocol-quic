@@ -15,7 +15,7 @@ build-compile-commands:
   :commit: 1c4b18f86d45426d7dd284c28bc53837e5694b6c
   :branch: main
 scheduler:
-  :commit: 1fcf8b705bf5dbc3b27b0c3f3406d760a47d2437
+  :commit: 72b110d76990ca2037f98d22e324fe67b08c2a47
   :branch: main
 nghttp3:
   :commit: 735fd39749ec5efbaae9de62fa78538c09007b7c
@@ -61,4 +61,10 @@ executor-lldb:
   :branch: master
 streams:
   :commit: 2f9141de26e5331ab35fc91c03ab6a60317bbf7c
+  :branch: master
+platform-linux:
+  :commit: c3c5cbf90d26d23c6137def781cd997ddca5e51a
+  :branch: master
+build-linux:
+  :commit: cbc8c52c2ca2fc75761e545c83429ef34e4cd4fe
   :branch: master

@@ -14,6 +14,7 @@
 #include <optional>
 #include <vector>
 #include <cstring>
+#include <iostream>
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -88,9 +89,14 @@ namespace Protocol
 		
 		class Socket
 		{
+			std::string _annotation;
+			
 		public:
 			Socket(int domain, int type = SOCK_DGRAM, int protocol = IPPROTO_UDP);
 			~Socket();
+			
+			const std::string & annotation() const {return _annotation;}
+			void annotate(const std::string & annotation) {_annotation = annotation;}
 			
 			Socket(Socket && other);
 			Socket & operator=(Socket && other);
@@ -106,12 +112,7 @@ namespace Protocol
 			bool bind(const Address & address);
 			bool connect(const Address & address);
 			
-			void close() {
-				if (_descriptor >= 0) {
-					::close(_descriptor);
-					_descriptor = -1;
-				}
-			}
+			void close();
 			
 			operator bool() const {return _descriptor >= 0;}
 			
@@ -127,5 +128,26 @@ namespace Protocol
 			
 			ECN _ecn = ECN::UNSPECIFIED;
 		};
+		
+		inline std::ostream & operator<<(std::ostream & output, const Address & address)
+		{
+			output << "<Address family=" << address.data.sa.sa_family << " address=" << address.to_string() << ">";
+			
+			return output;
+		}
+		
+		inline std::ostream & operator<<(std::ostream & output, const Destination & destination)
+		{
+			output << "<Destination address=" << Address(destination) << ">";
+			
+			return output;
+		}
+		
+		inline std::ostream & operator<<(std::ostream & output, const Socket & socket)
+		{
+			output << "<Socket@" << &socket << " " << socket.annotation() << " descriptor=" << socket.descriptor() << ">";
+			
+			return output;
+		}
 	}
 }

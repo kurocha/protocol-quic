@@ -7,6 +7,10 @@
 //
 
 #include "Client.hpp"
+#include "Scheduler/Handle.hpp"
+
+#include <Scheduler/After.hpp>
+#include <Scheduler/Fiber.hpp>
 
 #include <ngtcp2/ngtcp2.h>
 #include <stdexcept>
@@ -21,6 +25,11 @@ namespace Protocol
 		{
 			auto callbacks = ngtcp2_callbacks{};
 			Connection::setup(&callbacks, settings, params);
+			
+			params->initial_max_streams_bidi = 3;
+			params->initial_max_streams_uni = 3;
+			params->initial_max_stream_data_bidi_local = 128 * 1024;
+			params->initial_max_data = 1024 * 1024;
 			
 			if (ngtcp2_conn_client_new(&_connection, dcid, scid, path, chosen_version, &callbacks, settings, params, nullptr, this)) {
 				throw std::runtime_error("Failed to create QUIC client connection!");
@@ -41,6 +50,8 @@ namespace Protocol
 				.user_data = &socket,
 			};
 			
+			socket.annotate("client");
+			
 			auto settings = ngtcp2_settings{};
 			ngtcp2_settings_default(&settings);
 			
@@ -59,8 +70,17 @@ namespace Protocol
 			auto path = ngtcp2_conn_get_path(_connection);
 			Socket & socket = *static_cast<Socket *>(path->user_data);
 			
-			while (socket) {
-				this->receive_from(socket);
+			Scheduler::Fiber reader([&](){
+				while (true) {
+					read_packets(socket);
+				}
+			});
+			
+			Scheduler::After delay(0.1);
+			
+			while (true) {
+				write_packets();
+				delay.wait();
 			}
 		}
 		

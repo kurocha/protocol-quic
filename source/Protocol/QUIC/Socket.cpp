@@ -32,13 +32,16 @@ namespace Protocol
 	{
 		std::string Address::to_string() const
 		{
-			char buffer[NI_MAXHOST];
+			if (length == 0) return "<unknown>";
 			
-			if (getnameinfo(&data.sa, length, buffer, sizeof(buffer), nullptr, 0, NI_NUMERICHOST) != 0) {
+			char name[NI_MAXHOST];
+			char service[NI_MAXSERV];
+			
+			if (getnameinfo(&data.sa, length, name, sizeof(name), service, sizeof(service), NI_NUMERICHOST|NI_NUMERICSERV) != 0) {
 				throw std::runtime_error("getnameinfo");
 			}
 			
-			return buffer;
+			return std::string(name) + ":" + service;
 		}
 		
 		std::optional<Address> Address::extract(msghdr *message, int family)
@@ -175,12 +178,18 @@ namespace Protocol
 			set_ip_dontfrag(_descriptor, domain);
 		}
 		
+		void Socket::close() {
+				if (_descriptor >= 0) {
+					::close(_descriptor);
+					
+					_descriptor = -1;
+				}
+			}
+		
 		Socket::~Socket()
 		{
-			if (_descriptor >= 0) {
-				::close(_descriptor);
-				_descriptor = -1;
-			}
+			std::cerr << *this << " Socket::~Socket()" << std::endl;
+			close();
 		}
 		
 		Socket::Socket(Socket && other)
@@ -242,6 +251,8 @@ namespace Protocol
 				return false;
 			}
 			
+			std::cerr << *this << " bind address=" << address << std::endl;
+			
 			_local_address = address;
 			return true;
 		}
@@ -251,6 +262,8 @@ namespace Protocol
 			if (::connect(_descriptor, &address.data.sa, address.length) < 0) {
 				return false;
 			}
+			
+			std::cerr << *this << " connect address=" << address << std::endl;
 			
 			_remote_address = address;
 			return true;
@@ -297,7 +310,7 @@ namespace Protocol
 		
 		size_t Socket::send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn)
 		{
-			std::cerr << "send_packet: " << size << " bytes to " << Address(destination).to_string() << std::endl;
+			std::cerr << *this << " send_packet " << size << " bytes to " << destination << std::endl;
 			
 			iovec iov{
 				.iov_base = const_cast<void *>(data),
@@ -316,14 +329,21 @@ namespace Protocol
 			}
 			
 			ssize_t result;
+			Scheduler::Monitor monitor(_descriptor);
 			
 			do {
 				result = sendmsg(_descriptor, &message, 0);
-			} while (result == -1 && errno == EINTR);
-			
-			if (result == -1) {
-				throw std::runtime_error("sendmsg: " + std::string(strerror(errno)));
-			}
+				
+				if (result == -1) {
+					if (errno == EAGAIN || errno == EWOULDBLOCK) {
+						monitor.wait_writable();
+					} else if (errno == EINTR) {
+						// ignore
+					} else {
+						throw std::system_error(errno, std::generic_category(), "recvmsg");
+					}
+				}
+			} while (result == -1);
 			
 			return result;
 		}
@@ -338,10 +358,15 @@ namespace Protocol
 			uint8_t message_control[CMSG_SPACE(sizeof(uint8_t))];
 			
 			msghdr message = {
+				// Provide the address data pointer / length:
 				.msg_name = &address.data.sa,
-				.msg_namelen = sizeof(address.length),
+				.msg_namelen = sizeof(address.data.sa),
+				
+				// Provide the data buffer io vectors:
 				.msg_iov = &iov,
 				.msg_iovlen = 1,
+				
+				// Provide the message control buffer (for reading the ecn):
 				.msg_control = message_control,
 				.msg_controllen = sizeof(message_control)
 			};
@@ -351,12 +376,10 @@ namespace Protocol
 			Scheduler::Monitor monitor(_descriptor);
 			
 			do {
-				std::cerr << "receive_packet: waiting for data descriptor=" << _descriptor << std::endl;
 				result = recvmsg(_descriptor, &message, 0);
 				
 				if (result == -1) {
 					if (errno == EAGAIN || errno == EWOULDBLOCK) {
-						std::cerr << "receive_packet: result=" << result << " errno=" << errno << std::endl;
 						monitor.wait_readable();
 					} else if (errno == EINTR) {
 						// ignore
@@ -366,7 +389,13 @@ namespace Protocol
 				}
 			} while (result == -1);
 			
+			// Read the ECN from the message control buffer:
 			_ecn = ecn = get_ecn(&message, address.data.sa.sa_family);
+			
+			// Update the address with the actual length:
+			address.length = message.msg_namelen;
+			
+			std::cerr << *this << " receive_packet " << result << " bytes from " << address << std::endl;
 			
 			return result;
 		}

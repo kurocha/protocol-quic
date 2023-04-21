@@ -8,6 +8,8 @@
 
 #include "ServerSession.hpp"
 
+#include <stdexcept>
+
 namespace Protocol
 {
 	namespace QUIC

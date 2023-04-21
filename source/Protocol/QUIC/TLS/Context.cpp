@@ -27,7 +27,7 @@ namespace Protocol
 						.len = protocol.size(),
 					};
 					
-					std::memcpy(name.base, protocol.data(), protocol.size());
+					memcpy(name.base, protocol.data(), protocol.size());
 					
 					names.push_back(name);
 				}

@@ -16,6 +16,8 @@
 #include <stdexcept>
 #include <system_error>
 
+#include <iostream>
+
 namespace Protocol
 {
 	namespace QUIC
@@ -66,28 +68,44 @@ namespace Protocol
 				ngtcp2_conn_del(_connection);
 		}
 		
-		StreamID Connection::open_bidirectional_stream(void *user_data)
+		Stream *Connection::create_stream(StreamID stream_id)
+		{
+			auto [iterator, inserted] = _streams.emplace(
+				stream_id,
+				std::make_unique<Stream>(stream_id)
+			);
+			
+			if (!inserted) {
+				throw std::runtime_error("Stream already exists!");
+			}
+			
+			ngtcp2_conn_set_stream_user_data(_connection, stream_id, iterator->second.get());
+			
+			return iterator->second.get();
+		}
+		
+		Stream* Connection::open_bidirectional_stream()
 		{
 			StreamID stream_id;
 			
-			auto result = ngtcp2_conn_open_bidi_stream(_connection, &stream_id, user_data);
+			auto result = ngtcp2_conn_open_bidi_stream(_connection, &stream_id, nullptr);
 			
 			if (result != 0)
 				throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_open_bidi_stream");
 			
-			return stream_id;
+			return create_stream(stream_id);
 		}
 		
-		StreamID Connection::open_unidirectional_stream(void *user_data)
+		Stream* Connection::open_unidirectional_stream()
 		{
 			StreamID stream_id;
 			
-			auto result = ngtcp2_conn_open_uni_stream(_connection, &stream_id, user_data);
+			auto result = ngtcp2_conn_open_uni_stream(_connection, &stream_id, nullptr);
 			
 			if (result != 0)
 				throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_open_uni_stream");
 			
-			return stream_id;
+			return create_stream(stream_id);
 		}
 		
 		const ngtcp2_cid * Connection::client_initial_dcid()
@@ -107,48 +125,113 @@ namespace Protocol
 		
 		int handshake_completed_callback(ngtcp2_conn *conn, void *user_data)
 		{
+			std::cerr << "handshake_completed_callback" << std::endl;
+			
 			try {
 				reinterpret_cast<Connection*>(user_data)->handshake_completed();
 			} catch (...) {
 				return NGTCP2_ERR_CALLBACK_FAILURE;
 			}
+			
+			return 0;
 		}
 		
 		void Connection::handshake_completed()
 		{
+			std::cerr << "*** handshake_completed ***" << std::endl;
 		}
 		
 		int receive_stream_data_callback(ngtcp2_conn *conn, uint32_t flags, int64_t stream_id, uint64_t offset, const uint8_t *data, size_t size, void *user_data, void *stream_user_data)
 		{
+			std::cerr << "receive_stream_data_callback: " << stream_id << std::endl;
+			
+			auto stream = reinterpret_cast<Stream*>(stream_user_data);
+			
 			try {
-				reinterpret_cast<Connection*>(user_data)->receive_stream_data(flags, stream_id, data, size, stream_user_data);
+				stream->input_buffer().append(data, size);
 			} catch (...) {
 				return NGTCP2_ERR_CALLBACK_FAILURE;
 			}
+			
+			return 0;
 		}
 		
-		void Connection::receive_stream_data(StreamDataFlags flags, StreamID stream_id, const Byte *buffer, std::size_t length, void * user_data)
+		int acked_stream_data_offset_callback(ngtcp2_conn *conn, int64_t stream_id, uint64_t offset, uint64_t datalen, void *user_data, void *stream_user_data)
 		{
+			std::cerr << "acked_stream_data_offset_callback: " << stream_id << std::endl;
+			
+			auto stream = reinterpret_cast<Stream*>(stream_user_data);
+			
+			try {
+				stream->output_buffer().acknowledge(datalen);
+			} catch (...) {
+				return NGTCP2_ERR_CALLBACK_FAILURE;
+			}
+			
+			return 0;
 		}
 		
-		void Connection::write_stream_data(StreamID stream_id, const Byte *buffer, std::size_t length, StreamDataFlags flags)
+		void Connection::write_packets()
 		{
+			std::array<Byte, 1024*64> packet;
 			ngtcp2_path_storage path_storage;
 			ngtcp2_path_storage_zero(&path_storage);
-			
 			ngtcp2_pkt_info packet_info;
-			std::array<Byte, 1024*64> packet;
 			ngtcp2_ssize written_length = 0;
+			StreamDataFlags flags = 0;
 			
-			auto result = ngtcp2_conn_write_stream(_connection, &path_storage.path, &packet_info, packet.data(), packet.size(), &written_length, flags, stream_id, buffer, length, timestamp());
+			auto result = ngtcp2_conn_write_stream(_connection, &path_storage.path, &packet_info, packet.data(), packet.size(), &written_length, flags, -1, nullptr, 0, timestamp());
 			
 			if (result < 0) {
+				throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_write_stream");
+			}
+			
+			if (result > 0) {
+				auto & socket = *reinterpret_cast<Socket*>(path_storage.path.user_data);
 				
+				auto size = socket.send_packet(packet.data(), result, path_storage.path.remote, static_cast<ECN>(packet_info.ecn));
+			}
+			
+			for (auto & [stream_id, stream] : _streams) {
+				write_packets(stream.get());
 			}
 		}
 		
-		void Connection::receive_from(Socket & socket, std::size_t count)
+		void Connection::write_packets(Stream * stream)
 		{
+			ngtcp2_path_storage path_storage;
+			ngtcp2_path_storage_zero(&path_storage);
+			ngtcp2_pkt_info packet_info;
+			ngtcp2_ssize written_length = 0;
+			
+			std::array<Byte, 1024*64> packet;
+			
+			StreamDataFlags flags = 0;
+			if (stream->output_buffer().closed())
+				flags |= NGTCP2_WRITE_STREAM_FLAG_FIN;
+			
+			auto chunks = stream->output_buffer().chunks();
+			
+			auto result = ngtcp2_conn_writev_stream(_connection, &path_storage.path, &packet_info, packet.data(), packet.size(), &written_length, flags, stream->stream_id(), chunks.data(), chunks.size(), timestamp());
+			
+			if (result < 0) {
+				throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_write_stream");
+			}
+			
+			if (result > 0) {
+				auto & socket = *reinterpret_cast<Socket*>(path_storage.path.user_data);
+				
+				auto size = socket.send_packet(packet.data(), result, path_storage.path.remote, static_cast<ECN>(packet_info.ecn));
+				
+				if (size > 0)
+					stream->output_buffer().increment(size);
+			}
+		}
+		
+		void Connection::read_packets(Socket & socket, std::size_t count)
+		{
+			std::cerr << "read_packets from " << socket << std::endl;
+			
 			std::array<std::uint8_t, 1024*64> buffer;
 			
 			while (count > 0) {
@@ -251,6 +334,7 @@ namespace Protocol
 			callbacks->rand = random_callback;
 			
 			callbacks->client_initial = ngtcp2_crypto_client_initial_cb;
+			callbacks->recv_client_initial = ngtcp2_crypto_recv_client_initial_cb;
 			callbacks->recv_crypto_data = ngtcp2_crypto_recv_crypto_data_cb;
 			callbacks->encrypt = ngtcp2_crypto_encrypt_cb;
 			callbacks->decrypt = ngtcp2_crypto_decrypt_cb;
@@ -265,6 +349,7 @@ namespace Protocol
 			
 			callbacks->handshake_completed = handshake_completed_callback;
 			callbacks->recv_stream_data = receive_stream_data_callback;
+			callbacks->acked_stream_data_offset = acked_stream_data_offset_callback;
 			
 			settings->initial_ts = timestamp();
 		}
