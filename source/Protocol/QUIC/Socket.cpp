@@ -13,6 +13,7 @@
 
 #include <cstring>
 #include <system_error>
+#include <iostream>
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -178,6 +179,7 @@ namespace Protocol
 		{
 			if (_descriptor >= 0) {
 				::close(_descriptor);
+				_descriptor = -1;
 			}
 		}
 		
@@ -295,6 +297,8 @@ namespace Protocol
 		
 		size_t Socket::send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn)
 		{
+			std::cerr << "send_packet: " << size << " bytes to " << Address(destination).to_string() << std::endl;
+			
 			iovec iov{
 				.iov_base = const_cast<void *>(data),
 				.iov_len = size
@@ -347,10 +351,12 @@ namespace Protocol
 			Scheduler::Monitor monitor(_descriptor);
 			
 			do {
+				std::cerr << "receive_packet: waiting for data descriptor=" << _descriptor << std::endl;
 				result = recvmsg(_descriptor, &message, 0);
 				
 				if (result == -1) {
 					if (errno == EAGAIN || errno == EWOULDBLOCK) {
+						std::cerr << "receive_packet: result=" << result << " errno=" << errno << std::endl;
 						monitor.wait_readable();
 					} else if (errno == EINTR) {
 						// ignore
@@ -358,11 +364,7 @@ namespace Protocol
 						throw std::system_error(errno, std::generic_category(), "recvmsg");
 					}
 				}
-			} while (result == -1 && errno == EINTR);
-			
-			if (result == -1) {
-				throw std::runtime_error("recvmsg: " + std::string(strerror(errno)));
-			}
+			} while (result == -1);
 			
 			_ecn = ecn = get_ecn(&message, address.data.sa.sa_family);
 			

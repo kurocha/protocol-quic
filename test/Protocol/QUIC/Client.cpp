@@ -15,7 +15,10 @@
 
 #include <Scheduler/Reactor.hpp>
 #include <Scheduler/Fiber.hpp>
+
 #include <memory>
+#include <iostream>
+
 
 namespace Protocol
 {
@@ -80,12 +83,15 @@ namespace Protocol
 					EchoServerBinding binding(configuration, tls_server_context);
 					
 					std::vector<std::unique_ptr<Scheduler::Fiber>> fibers;
+					
 					for (auto & address : addresses) {
-						auto listening_fiber = std::make_unique<Scheduler::Fiber>([&] {
+						std::cerr << "Listening on: " << address.to_string() << std::endl;
+						
+						auto listening_fiber = std::make_unique<Scheduler::Fiber>("listening", [&] {
 							binding.listen(address);
 						});
 						
-						listening_fiber->resume();
+						listening_fiber->transfer();
 						
 						fibers.push_back(std::move(listening_fiber));
 					}
@@ -93,17 +99,21 @@ namespace Protocol
 					Protocol::QUIC::TLS::ClientContext tls_client_context;
 					
 					for (auto & address : addresses) {
-						Scheduler::Fiber client_fiber([&]{
+						auto client_fiber = std::make_unique<Scheduler::Fiber>("client", [&] {
 							Socket socket(address.family());
 							socket.connect(address);
 							
 							EchoClient client(configuration, tls_client_context, socket, address);
+							client.connect();
 						});
 						
-						client_fiber.resume();
+						client_fiber->transfer();
+						
+						fibers.push_back(std::move(client_fiber));
 					}
 					
-					bound.reactor.update(0);
+					std::cerr << "Entering reactor..." << std::endl;
+					bound.reactor.wait(1.0);
 				}
 			},
 		};
