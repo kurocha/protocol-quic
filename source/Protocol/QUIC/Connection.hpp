@@ -17,6 +17,7 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <iosfwd>
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -30,7 +31,7 @@ namespace Protocol
 		using StreamDataFlags = std::uint32_t;
 		
 		
-		constexpr size_t DEFAULT_SCID_LENGTH = 18;
+		constexpr size_t DEFAULT_SCID_LENGTH = 8;
 		
 		Timestamp timestamp();
 		
@@ -73,6 +74,8 @@ namespace Protocol
 			
 			void read_packets(Socket & socket, std::size_t count = 1);
 			
+			virtual void print(std::ostream & output) const;
+			
 		protected:
 			Configuration & _configuration;
 			
@@ -87,5 +90,7 @@ namespace Protocol
 			// Setup default callbacks and related settings.
 			void setup(ngtcp2_callbacks *callbacks, ngtcp2_settings *settings, ngtcp2_transport_params *params);
 		};
+		
+		std::ostream & operator<<(std::ostream & output, const Connection & connection);
 	}
 }

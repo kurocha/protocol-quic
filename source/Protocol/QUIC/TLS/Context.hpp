@@ -45,7 +45,7 @@ namespace Protocol
 				void load_certificate_file(const char * path);
 				void load_private_key_file(const char * path);
 				
-				std::vector<std::string> protocols() {return _protocols;}
+				std::vector<std::string> & protocols() {return _protocols;}
 				const std::vector<std::string> & protocols() const {return _protocols;}
 				
 			protected:

@@ -27,9 +27,10 @@ namespace Protocol
 				
 				set_connection_reference();
 				
-				auto handshake_properties = _context.handshake_properties;
+				auto &handshake_properties = _context.handshake_properties;
 				handshake_properties.client.negotiated_protocols.list = _negotiated_protocols.names.data();
 				handshake_properties.client.negotiated_protocols.count = _negotiated_protocols.names.size();
+				
 				setup_extensions();
 				
 				if (ngtcp2_crypto_picotls_configure_client_session(&_context, connection)) {

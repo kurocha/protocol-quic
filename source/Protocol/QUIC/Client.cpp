@@ -50,6 +50,8 @@ namespace Protocol
 				.user_data = &socket,
 			};
 			
+			std::cerr << *this << " Initial path: " << socket.local_address() << " -> " << remote_address << std::endl;
+			
 			socket.annotate("client");
 			
 			auto settings = ngtcp2_settings{};
@@ -70,13 +72,15 @@ namespace Protocol
 			auto path = ngtcp2_conn_get_path(_connection);
 			Socket & socket = *static_cast<Socket *>(path->user_data);
 			
-			Scheduler::Fiber reader([&](){
+			std::cerr << *this << " Connect path: " << path->local << " -> " << path->remote << std::endl;
+			
+			Scheduler::Reactor::current->fiber([&]{
 				while (true) {
 					read_packets(socket);
 				}
 			});
 			
-			Scheduler::After delay(0.1);
+			Scheduler::After delay(0.001);
 			
 			while (true) {
 				write_packets();
@@ -88,5 +92,10 @@ namespace Protocol
 		// {
 		// 	ngtcp2_conn_decode_early_transport_params(_connection, buffer.data(), buffer.size());
 		// }
+		
+		void Client::print(std::ostream & output) const
+		{
+			output << "<Client@" << this << ">";
+		}
 	}
 }

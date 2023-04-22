@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <memory>
 #include <string_view>
+#include <iosfwd>
 
 #include "TLS/ClientSession.hpp"
 
@@ -39,6 +40,8 @@ namespace Protocol
 			std::unique_ptr<TLS::ClientSession> _tls_session;
 			
 			std::uint32_t _chosen_version;
+			
+			void print(std::ostream & output) const override;
 		};
 	}
 }

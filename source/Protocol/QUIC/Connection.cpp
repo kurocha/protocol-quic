@@ -9,6 +9,7 @@
 #include "Connection.hpp"
 #include "Configuration.hpp"
 #include "Random.hpp"
+#include "picotls.h"
 
 #include <chrono>
 #include <array>
@@ -17,6 +18,7 @@
 #include <system_error>
 
 #include <iostream>
+#include <stdio.h>
 
 namespace Protocol
 {
@@ -52,9 +54,8 @@ namespace Protocol
 			assert(length <= NGTCP2_MAX_CIDLEN);
 			assert(cid);
 			
+			Random::generate_secure(cid->data, length);
 			cid->datalen = length;
-			
-			Random::generate_secure(cid->data, cid->datalen);
 		}
 		
 		Connection::Connection(Configuration & configuration, ngtcp2_conn * connection) : _configuration(configuration), _connection(connection)
@@ -125,8 +126,6 @@ namespace Protocol
 		
 		int handshake_completed_callback(ngtcp2_conn *conn, void *user_data)
 		{
-			std::cerr << "handshake_completed_callback" << std::endl;
-			
 			try {
 				reinterpret_cast<Connection*>(user_data)->handshake_completed();
 			} catch (...) {
@@ -190,6 +189,10 @@ namespace Protocol
 				auto & socket = *reinterpret_cast<Socket*>(path_storage.path.user_data);
 				
 				auto size = socket.send_packet(packet.data(), result, path_storage.path.remote, static_cast<ECN>(packet_info.ecn));
+				
+				if (size != result) {
+					throw std::runtime_error("send_packet failed");
+				}
 			}
 			
 			for (auto & [stream_id, stream] : _streams) {
@@ -230,8 +233,6 @@ namespace Protocol
 		
 		void Connection::read_packets(Socket & socket, std::size_t count)
 		{
-			std::cerr << "read_packets from " << socket << std::endl;
-			
 			std::array<std::uint8_t, 1024*64> buffer;
 			
 			while (count > 0) {
@@ -246,6 +247,8 @@ namespace Protocol
 					.user_data = reinterpret_cast<void*>(&socket),
 				};
 				
+				std::cerr << *this << " read_packets: " << path.local << " -> " << path.remote << std::endl;
+				
 				auto packet_info = ngtcp2_pkt_info{
 					.ecn = static_cast<std::uint8_t>(ecn),
 				};
@@ -253,13 +256,7 @@ namespace Protocol
 				auto result = ngtcp2_conn_read_pkt(_connection, &path, &packet_info, buffer.data(), length, timestamp());
 				
 				if (result < 0) {
-					if (!_last_error.error_code) {
-						if (result == NGTCP2_ERR_CRYPTO) {
-							ngtcp2_connection_close_error_set_transport_error_tls_alert(&_last_error, ngtcp2_conn_get_tls_alert(_connection), nullptr, 0);
-						} else {
-							ngtcp2_connection_close_error_set_transport_error_liberr(&_last_error, result, nullptr, 0);
-						}
-					}
+					set_last_error(result);
 					
 					this->disconnect();
 					
@@ -313,6 +310,8 @@ namespace Protocol
 		
 		int get_new_connection_id_callback(ngtcp2_conn *conn, ngtcp2_cid *cid, uint8_t *token, size_t cidlen, void *user_data)
 		{
+			std::cerr << "get_new_connection_id_callback" << std::endl;
+			
 			auto & connection = *reinterpret_cast<Connection*>(user_data);
 			
 			try {
@@ -324,11 +323,22 @@ namespace Protocol
 			return 0;
 		}
 		
+		void log_printf(void *user_data, const char *fmt, ...) {
+			va_list ap;
+			(void)user_data;
+			char buffer[1024*4];
+			
+			auto connection = reinterpret_cast<Connection*>(user_data);
+			
+			va_start(ap, fmt);
+			vsnprintf(buffer, sizeof(buffer), fmt, ap);
+			va_end(ap);
+			
+			std::cerr << *connection << " ngtcp2: " << buffer << std::endl;
+		}
+		
 		void Connection::setup(ngtcp2_callbacks *callbacks, ngtcp2_settings *settings, ngtcp2_transport_params *params)
 		{
-			ngtcp2_settings_default(settings);
-			ngtcp2_transport_params_default(params);
-			
 			// Setup the random data generator:
 			settings->rand_ctx.native_handle = reinterpret_cast<void*>(&_random);
 			callbacks->rand = random_callback;
@@ -352,6 +362,10 @@ namespace Protocol
 			callbacks->acked_stream_data_offset = acked_stream_data_offset_callback;
 			
 			settings->initial_ts = timestamp();
+			settings->log_printf = log_printf;
+			
+			// The default of 2 is apparently invalid:
+			params->active_connection_id_limit = 7;
 		}
 		
 		void Connection::generate_connection_id(ngtcp2_cid *cid, std::size_t cidlen, uint8_t *token)
@@ -368,6 +382,8 @@ namespace Protocol
 		
 		void Connection::set_last_error(int result)
 		{
+			std::cerr << *this << " ngtcp2: " << ngtcp2_strerror(result) << std::endl;
+			
 			if (!_last_error.error_code) {
 				if (result == NGTCP2_ERR_CRYPTO) {
 					ngtcp2_connection_close_error_set_transport_error_tls_alert(&_last_error, ngtcp2_conn_get_tls_alert(_connection), nullptr, 0);
@@ -375,6 +391,18 @@ namespace Protocol
 					ngtcp2_connection_close_error_set_transport_error_liberr(&_last_error, result, nullptr, 0);
 				}
 			}
+		}
+		
+		void Connection::print(std::ostream & output) const
+		{
+			output << "<Connection@" << this << ">";
+		}
+		
+		std::ostream & operator<<(std::ostream & output, const Connection & connection)
+		{
+			connection.print(output);
+			
+			return output;
 		}
 	}
 }

@@ -22,8 +22,8 @@ namespace Protocol
 			auto callbacks = ngtcp2_callbacks{};
 			Connection::setup(&callbacks, settings, params);
 			
-			params->original_dcid = _scid;
-			params->original_dcid_present = 1;
+			// Random::generate_secure(params->stateless_reset_token, sizeof(params->stateless_reset_token));
+			// params->stateless_reset_token_present = 1;
 			
 			if (ngtcp2_conn_server_new(&_connection, dcid, scid, path, client_chosen_version, &callbacks, settings, params, mem, this)) {
 				throw std::runtime_error("Failed to create QUIC server connection!");
@@ -32,15 +32,28 @@ namespace Protocol
 			_tls_session = std::make_unique<TLS::ServerSession>(tls_context, _connection);
 		}
 		
-		Server::Server(Binding * binding, Configuration & configuration, TLS::ServerContext & tls_context, Socket & socket, const Address & remote_address, const ngtcp2_pkt_hd & packet_header) : Connection(configuration), _binding(binding)
+		Server::Server(Binding * binding, Configuration & configuration, TLS::ServerContext & tls_context, Socket & socket, const Address & remote_address, const ngtcp2_pkt_hd & packet_header, ngtcp2_cid *ocid) : Connection(configuration), _binding(binding)
 		{
+			// Generate the server connection ID:
+			generate_cid(&_scid);
+
 			auto settings = ngtcp2_settings{};
 			ngtcp2_settings_default(&settings);
+			
+			settings.token = packet_header.token;
+			settings.tokenlen = packet_header.tokenlen;
 			
 			auto params = ngtcp2_transport_params{};
 			ngtcp2_transport_params_default(&params);
 			
-			generate_cid(&_scid, DEFAULT_SCID_LENGTH);
+			if (ocid) {
+				params.original_dcid = *ocid;
+				params.retry_scid = packet_header.dcid;
+				params.retry_scid_present = 1;
+			} else {
+				params.original_dcid = packet_header.dcid;
+				params.original_dcid_present = 1;
+			}
 			
 			auto path = ngtcp2_path{
 				.local = socket.local_address(),
@@ -48,7 +61,7 @@ namespace Protocol
 				.user_data = &socket,
 			};
 			
-			setup(tls_context, &packet_header.dcid, &_scid, &path, packet_header.version, &settings, &params);
+			setup(tls_context, &packet_header.scid, &_scid, &path, packet_header.version, &settings, &params);
 		}
 		
 		Server::~Server()
@@ -102,6 +115,11 @@ namespace Protocol
 			
 			set_last_error(result);
 			handle_error();
+		}
+		
+		void Server::print(std::ostream & output) const
+		{
+			output << "<Server@" << this << ">";
 		}
 	}
 }

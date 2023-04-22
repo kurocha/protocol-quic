@@ -9,6 +9,7 @@
 #pragma once
 
 #include <memory>
+#include <iosfwd>
 
 #include "Connection.hpp"
 #include "TLS/ServerSession.hpp"
@@ -24,7 +25,7 @@ namespace Protocol
 		{
 			void setup(TLS::ServerContext & tls_context, const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, uint32_t client_chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *params, const ngtcp2_mem *mem = nullptr);
 		public:
-			Server(Binding * binding, Configuration & configuration, TLS::ServerContext & tls_context, Socket & socket, const Address & remote_address, const ngtcp2_pkt_hd & packet_header);
+			Server(Binding * binding, Configuration & configuration, TLS::ServerContext & tls_context, Socket & socket, const Address & remote_address, const ngtcp2_pkt_hd & packet_header, ngtcp2_cid *ocid = nullptr);
 			virtual ~Server();
 			
 			void process_packet(Socket & socket, const Address & remote_address, const Byte *data, std::size_t length, ECN ecn);
@@ -37,6 +38,8 @@ namespace Protocol
 			std::unique_ptr<TLS::ServerSession> _tls_session;
 			
 			ngtcp2_cid _scid;
+			
+			void print(std::ostream & output) const override;
 		};
 	}
 }

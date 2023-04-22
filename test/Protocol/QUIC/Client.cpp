@@ -36,8 +36,13 @@ namespace Protocol
 					Configuration configuration;
 					
 					auto addresses = Protocol::QUIC::Address::resolve("localhost", "4433");
+					addresses.resize(1);
 					
 					Protocol::QUIC::TLS::ServerContext tls_server_context;
+					tls_server_context.load_certificate_file("Protocol/QUIC/server.pem");
+					tls_server_context.load_private_key_file("Protocol/QUIC/server.key");
+					tls_server_context.protocols().push_back("txt");
+					
 					Binding binding(configuration, tls_server_context);
 					
 					std::vector<std::unique_ptr<Scheduler::Fiber>> fibers;
@@ -49,6 +54,8 @@ namespace Protocol
 							delay.wait();
 						}
 					});
+					
+					binding_fiber->transfer();
 					
 					for (auto & address : addresses) {
 						std::cerr << "Listening on: " << address.to_string() << std::endl;
@@ -64,6 +71,7 @@ namespace Protocol
 					}
 					
 					Protocol::QUIC::TLS::ClientContext tls_client_context;
+					tls_client_context.protocols().push_back("txt");
 					
 					std::cerr << "Creating clients..." << std::endl;
 					for (auto & address : addresses) {

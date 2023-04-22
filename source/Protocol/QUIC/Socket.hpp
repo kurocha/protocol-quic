@@ -145,7 +145,12 @@ namespace Protocol
 		
 		inline std::ostream & operator<<(std::ostream & output, const Socket & socket)
 		{
-			output << "<Socket@" << &socket << " " << socket.annotation() << " descriptor=" << socket.descriptor() << ">";
+			output << "<Socket@" << &socket;
+			
+			if (!socket.annotation().empty())
+				output << " " << socket.annotation();
+			
+			output << " descriptor=" << socket.descriptor() << ">";
 			
 			return output;
 		}

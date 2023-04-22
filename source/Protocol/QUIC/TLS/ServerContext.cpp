@@ -18,6 +18,7 @@
 #include <memory>
 #include <array>
 #include <stdexcept>
+#include <iostream>
 
 namespace Protocol
 {
@@ -30,6 +31,8 @@ namespace Protocol
 				
 				for (size_t i = 0; i < negotiated_protocols.count; ++i) {
 					auto &protocol = negotiated_protocols.list[i];
+					
+					std::cerr << "Negotiated protocol: " << std::string_view(reinterpret_cast<char *>(protocol.base), protocol.len) << std::endl;
 					
 					if (ptls_set_negotiated_protocol(ptls, reinterpret_cast<char *>(protocol.base), protocol.len) != 0) {
 						return -1;
