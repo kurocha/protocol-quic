@@ -6,8 +6,6 @@
 //  Copyright, 2023, by Samuel Williams. All rights reserved.
 //
 
-#define __APPLE_USE_RFC_3542
-
 #include "Socket.hpp"
 #include "Defer.hpp"
 
@@ -246,11 +244,21 @@ namespace Protocol
 			};
 			
 			msghdr message{
-				.msg_name = const_cast<sockaddr *>(destination.addr),
-				.msg_namelen = destination.addrlen,
+				.msg_name = nullptr,
+				.msg_namelen = 0,
 				.msg_iov = &iov,
 				.msg_iovlen = 1
 			};
+			
+			if (_remote_address) {
+				// Already connected...
+				assert(_remote_address == destination);
+			}
+			else {
+				// Not connected, so we need to set the destination address:
+				message.msg_name = const_cast<sockaddr *>(destination.addr);
+				message.msg_namelen = destination.addrlen;
+			}
 			
 			if (ecn != _ecn) {
 				set_ecn(_descriptor, destination.addr->sa_family, ecn);

@@ -57,8 +57,12 @@ namespace Protocol
 			operator Destination() {return {&data.sa, length};}
 			operator const Destination() const {return {const_cast<ngtcp2_sockaddr*>(&data.sa), length};}
 			
-			bool operator==(const Address & other) const {
+			bool operator==(const Address &other) const {
 				return length == other.length && std::memcmp(&data, &other.data, length) == 0;
+			}
+			
+			bool operator==(const Destination &other) const {
+				return length == other.addrlen && std::memcmp(&data, other.addr, length) == 0;
 			}
 			
 			int family() const {return data.sa.sa_family;}

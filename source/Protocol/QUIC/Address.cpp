@@ -6,6 +6,9 @@
 //  Copyright, 2023, by Samuel Williams. All rights reserved.
 //
 
+// This is required for IPV6_PKTINFO on macOS.
+#define __APPLE_USE_RFC_3542
+
 #include "Address.hpp"
 #include "Defer.hpp"
 
