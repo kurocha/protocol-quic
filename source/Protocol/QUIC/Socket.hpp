@@ -8,72 +8,22 @@
 
 #pragma once
 
+#include "Address.hpp"
+
 #include <algorithm>
 #include <cstdint>
 #include <string>
 #include <optional>
 #include <vector>
 #include <cstring>
-#include <iostream>
-
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-
-#include <ngtcp2/ngtcp2.h>
+#include <iosfwd>
+#include <cassert>
 
 namespace Protocol
 {
 	namespace QUIC
 	{
 		using Byte = std::uint8_t;
-		using Destination = ngtcp2_addr;
-		
-		// A value based wrapper around ngtcp2_sockaddr_union.
-		struct Address {
-			static std::optional<Address> extract(msghdr *message, int family);
-			static std::vector<Address> resolve(const char * host, const char * service, int family = AF_UNSPEC, int socktype = SOCK_DGRAM, int flags = AI_PASSIVE|AI_ADDRCONFIG);
-			
-			ngtcp2_sockaddr_union data;
-			ngtcp2_socklen length = 0;
-			
-			Address() = default;
-			
-			Address(ngtcp2_sockaddr * sockaddr, ngtcp2_socklen length)
-			{
-				std::copy_n(reinterpret_cast<const std::uint8_t *>(sockaddr), length, reinterpret_cast<std::uint8_t *>(&data));
-				this->length = length;
-			}
-			
-			Address(const Destination & destination) : Address(destination.addr, destination.addrlen) {}
-			Address(const addrinfo * addr) : Address(addr->ai_addr, addr->ai_addrlen) {}
-			
-			void set(const ngtcp2_sockaddr * sockaddr, ngtcp2_socklen length)
-			{
-				std::copy_n(reinterpret_cast<const std::uint8_t *>(sockaddr), length, reinterpret_cast<std::uint8_t *>(&data));
-				this->length = length;
-			}
-			
-			Address & operator=(const Address & other) {
-				set(&other.data.sa, other.length);
-				return *this;
-			}
-			
-			operator bool() const {return length > 0;}
-			
-			operator Destination() {return {&data.sa, length};}
-			operator const Destination() const {return {const_cast<ngtcp2_sockaddr*>(&data.sa), length};}
-			
-			bool operator==(const Address & other) const {
-				return length == other.length && std::memcmp(&data, &other.data, length) == 0;
-			}
-			
-			int family() const {return data.sa.sa_family;}
-			
-			std::string to_string() const;
-		};
 		
 		enum class ECN : std::uint8_t {
 			// The not-ECT codepoint '00' indicates a packet that is not using ECN.
@@ -129,30 +79,6 @@ namespace Protocol
 			ECN _ecn = ECN::UNSPECIFIED;
 		};
 		
-		inline std::ostream & operator<<(std::ostream & output, const Address & address)
-		{
-			output << "<Address family=" << address.data.sa.sa_family << " address=" << address.to_string() << ">";
-			
-			return output;
-		}
-		
-		inline std::ostream & operator<<(std::ostream & output, const Destination & destination)
-		{
-			output << "<Destination address=" << Address(destination) << ">";
-			
-			return output;
-		}
-		
-		inline std::ostream & operator<<(std::ostream & output, const Socket & socket)
-		{
-			output << "<Socket@" << &socket;
-			
-			if (!socket.annotation().empty())
-				output << " " << socket.annotation();
-			
-			output << " descriptor=" << socket.descriptor() << ">";
-			
-			return output;
-		}
+		std::ostream & operator<<(std::ostream & output, const Socket & socket);
 	}
 }

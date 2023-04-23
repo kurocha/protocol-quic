@@ -7,14 +7,15 @@
 //
 
 #include "Client.hpp"
-#include "Scheduler/Handle.hpp"
 
+#include <stdexcept>
+#include <iostream>
+
+#include "Scheduler/Handle.hpp"
 #include <Scheduler/After.hpp>
 #include <Scheduler/Fiber.hpp>
 
 #include <ngtcp2/ngtcp2.h>
-#include <stdexcept>
-
 #include <ngtcp2/ngtcp2_crypto.h>
 
 namespace Protocol

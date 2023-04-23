@@ -30,78 +30,6 @@ namespace Protocol
 {
 	namespace QUIC
 	{
-		std::string Address::to_string() const
-		{
-			if (length == 0) return "<unknown>";
-			
-			char name[NI_MAXHOST];
-			char service[NI_MAXSERV];
-			
-			if (getnameinfo(&data.sa, length, name, sizeof(name), service, sizeof(service), NI_NUMERICHOST|NI_NUMERICSERV) != 0) {
-				throw std::runtime_error("getnameinfo");
-			}
-			
-			return std::string(name) + ":" + service;
-		}
-		
-		std::optional<Address> Address::extract(msghdr *message, int family)
-		{
-			if (family == AF_INET) {
-				for (auto cmsg = CMSG_FIRSTHDR(message); cmsg; cmsg = CMSG_NXTHDR(message, cmsg)) {
-					if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_PKTINFO) {
-						auto pktinfo = reinterpret_cast<in_pktinfo *>(CMSG_DATA(cmsg));
-						Address address;
-						address.length = sizeof(address.data.in);
-						address.data.in.sin_family = AF_INET;
-						address.data.in.sin_addr = pktinfo->ipi_addr;
-						return address;
-					}
-				}
-			}
-			else if (family == AF_INET6) {
-				for (auto cmsg = CMSG_FIRSTHDR(message); cmsg; cmsg = CMSG_NXTHDR(message, cmsg)) {
-					if (cmsg->cmsg_level == IPPROTO_IPV6 && cmsg->cmsg_type == IPV6_PKTINFO) {
-						auto pktinfo = reinterpret_cast<in6_pktinfo *>(CMSG_DATA(cmsg));
-						Address address;
-						address.length = sizeof(address.data.in6);
-						address.data.in6.sin6_family = AF_INET6;
-						address.data.in6.sin6_addr = pktinfo->ipi6_addr;
-						return address;
-					}
-				}
-			}
-			
-			return {};
-		}
-		
-		std::vector<Address> Address::resolve(const char * host, const char * service, int family, int type, int flags)
-		{
-			std::vector<Address> addresses;
-			
-			addrinfo hints;
-			std::memset(&hints, 0, sizeof(hints));
-			
-			hints.ai_family = family;
-			hints.ai_socktype = type;
-			hints.ai_flags = flags;
-			
-			addrinfo * result = nullptr;
-			
-			if (getaddrinfo(host, service, &hints, &result) != 0) {
-				throw std::runtime_error("getaddrinfo");
-			}
-			
-			Defer free_result([&]{
-				freeaddrinfo(result);
-			});
-			
-			for (auto iterator = result; iterator; iterator = iterator->ai_next) {
-				addresses.emplace_back(iterator->ai_addr, iterator->ai_addrlen);
-			}
-			
-			return addresses;
-		}
-		
 		int set_receive_ecn(int descriptor, int family) {
 			int tos = 1;
 			
@@ -359,8 +287,8 @@ namespace Protocol
 			
 			msghdr message = {
 				// Provide the address data pointer / length:
-				.msg_name = &address.data.sa,
-				.msg_namelen = sizeof(address.data.sa),
+				.msg_name = &address.data,
+				.msg_namelen = sizeof(address.data),
 				
 				// Provide the data buffer io vectors:
 				.msg_iov = &iov,
@@ -398,6 +326,18 @@ namespace Protocol
 			std::cerr << *this << " receive_packet " << result << " bytes from " << address << std::endl;
 			
 			return result;
+		}
+		
+		std::ostream & operator<<(std::ostream & output, const Socket & socket)
+		{
+			output << "<Socket@" << &socket;
+			
+			if (!socket.annotation().empty())
+				output << " " << socket.annotation();
+			
+			output << " descriptor=" << socket.descriptor() << ">";
+			
+			return output;
 		}
 	}
 }

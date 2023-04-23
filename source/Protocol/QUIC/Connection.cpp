@@ -18,6 +18,7 @@
 #include <system_error>
 
 #include <iostream>
+#include <iomanip>
 #include <stdio.h>
 
 namespace Protocol
@@ -231,6 +232,13 @@ namespace Protocol
 			}
 		}
 		
+		void Connection::read_packets(ngtcp2_path & path, std::size_t count)
+		{
+			auto & socket = *reinterpret_cast<Socket*>(path.user_data);
+			
+			read_packets(path, socket, count);
+		}
+		
 		void Connection::read_packets(Socket & socket, std::size_t count)
 		{
 			std::array<std::uint8_t, 1024*64> buffer;
@@ -248,6 +256,34 @@ namespace Protocol
 				};
 				
 				std::cerr << *this << " read_packets: " << path.local << " -> " << path.remote << std::endl;
+				
+				auto packet_info = ngtcp2_pkt_info{
+					.ecn = static_cast<std::uint8_t>(ecn),
+				};
+				
+				auto result = ngtcp2_conn_read_pkt(_connection, &path, &packet_info, buffer.data(), length, timestamp());
+				
+				if (result < 0) {
+					set_last_error(result);
+					
+					this->disconnect();
+					
+					throw std::runtime_error("ngtcp2_conn_read_pkt");
+				}
+				
+				count -= 1;
+			}
+		}
+		
+		void Connection::read_packets(ngtcp2_path & path, Socket & socket, std::size_t count)
+		{
+			std::array<std::uint8_t, 1024*64> buffer;
+			
+			while (count > 0) {
+				ECN ecn = ECN::UNSPECIFIED;
+				Address remote_address;
+				
+				auto length = socket.receive_packet(buffer.data(), buffer.size(), remote_address, ecn);
 				
 				auto packet_info = ngtcp2_pkt_info{
 					.ecn = static_cast<std::uint8_t>(ecn),

@@ -30,7 +30,6 @@ namespace Protocol
 		using Timestamp = ngtcp2_tstamp;
 		using StreamDataFlags = std::uint32_t;
 		
-		
 		constexpr size_t DEFAULT_SCID_LENGTH = 8;
 		
 		Timestamp timestamp();
@@ -72,7 +71,9 @@ namespace Protocol
 			void write_packets();
 			void write_packets(Stream * stream);
 			
+			void read_packets(ngtcp2_path & path, std::size_t count = 1);
 			void read_packets(Socket & socket, std::size_t count = 1);
+			void read_packets(ngtcp2_path & path, Socket & socket, std::size_t count = 1);
 			
 			virtual void print(std::ostream & output) const;
 			

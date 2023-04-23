@@ -9,9 +9,11 @@
 #include "Server.hpp"
 #include "Binding.hpp"
 
-#include "ngtcp2/ngtcp2.h"
-
 #include <Scheduler/After.hpp>
+
+#include <iostream>
+
+#include "ngtcp2/ngtcp2.h"
 
 namespace Protocol
 {
