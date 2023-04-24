@@ -238,6 +238,10 @@ namespace Protocol
 			auto data = stream->input_buffer().data();
 			std::cerr << *this << " *** stream_data: " << data << " ***" << std::endl;
 			stream->input_buffer().consume(data.size());
+			
+			// Echo:
+			stream->output_buffer().append(data);
+			write_packets();
 		}
 		
 		int acked_stream_data_offset_callback(ngtcp2_conn *conn, int64_t stream_id, uint64_t offset, uint64_t datalen, void *user_data, void *stream_user_data)

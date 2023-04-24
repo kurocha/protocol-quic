@@ -46,8 +46,6 @@ namespace Protocol
 				.user_data = &socket,
 			};
 			
-			std::cerr << *this << " Initial path: " << socket.local_address() << " -> " << remote_address << std::endl;
-			
 			socket.annotate("client");
 			
 			auto settings = ngtcp2_settings{};
