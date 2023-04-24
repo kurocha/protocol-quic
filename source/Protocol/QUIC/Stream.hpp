@@ -63,6 +63,11 @@ namespace Protocol
 				_chunks.emplace_back(static_cast<const char *>(data), size);
 			}
 			
+			void append(std::string_view data)
+			{
+				_chunks.emplace_back(data);
+			}
+			
 			std::vector<ngtcp2_vec> chunks()
 			{
 				std::vector<ngtcp2_vec> result;
@@ -136,10 +141,10 @@ namespace Protocol
 			
 			StreamID stream_id() const noexcept {return _stream_id;}
 			
-			// The user reads from the input buffer:
+			// The application reads from the input buffer:
 			InputBuffer & input_buffer() noexcept {return _input_buffer;}
 			
-			// The user writes to the output buffer:
+			// The application writes to the output buffer:
 			OutputBuffer & output_buffer() noexcept {return _output_buffer;}
 		};
 	}

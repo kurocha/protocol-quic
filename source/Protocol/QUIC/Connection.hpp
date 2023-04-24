@@ -54,6 +54,16 @@ namespace Protocol
 			bool is_in_closing_period() const {return ngtcp2_conn_is_in_closing_period(_connection);}
 			bool is_in_draining_period() const {return ngtcp2_conn_is_in_draining_period(_connection);}
 			
+			std::uint64_t bidirectional_streams_available()
+			{
+				return ngtcp2_conn_get_streams_bidi_left(_connection);
+			}
+			
+			std::uint64_t unidirectional_streams_available()
+			{
+				return ngtcp2_conn_get_streams_uni_left(_connection);
+			}
+			
 			Stream* open_bidirectional_stream();
 			Stream* open_unidirectional_stream();
 			
@@ -64,12 +74,22 @@ namespace Protocol
 			
 			virtual void handshake_completed();
 			
+			// This is often used as an entry point to create new streams:
+			virtual void extend_maximum_local_bidirectional_streams(std::uint64_t maximum_streams);
+			virtual void extend_maximum_local_unidirectional_streams(std::uint64_t maximum_streams);
+			
+			virtual Stream* stream_open(StreamID stream_id);
+			virtual void stream_data(Stream * stream);
+			virtual void stream_close(Stream * stream, int32_t flags, uint64_t error_code);
+			// virtual void stream_reset(StreamID stream_id);
+			// virtual void stream_stop_sending(StreamID stream_id);
+			
 			virtual void generate_connection_id(ngtcp2_cid *cid, std::size_t length, uint8_t *token);
 			
 			void set_last_error(int result);
 			
 			void write_packets();
-			void write_packets(Stream * stream);
+			size_t write_packets(Stream * stream);
 			
 			void read_packets(ngtcp2_path & path, std::size_t count = 1);
 			void read_packets(Socket & socket, std::size_t count = 1);

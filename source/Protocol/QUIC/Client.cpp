@@ -27,11 +27,6 @@ namespace Protocol
 			auto callbacks = ngtcp2_callbacks{};
 			Connection::setup(&callbacks, settings, params);
 			
-			params->initial_max_streams_bidi = 3;
-			params->initial_max_streams_uni = 3;
-			params->initial_max_stream_data_bidi_local = 128 * 1024;
-			params->initial_max_data = 1024 * 1024;
-			
 			if (ngtcp2_conn_client_new(&_connection, dcid, scid, path, chosen_version, &callbacks, settings, params, nullptr, this)) {
 				throw std::runtime_error("Failed to create QUIC client connection!");
 			}
@@ -68,24 +63,23 @@ namespace Protocol
 		{
 		}
 		
+		void Client::extend_maximum_local_bidirectional_streams(std::uint64_t maximum_streams)
+		{
+			std::cerr << *this << " *** creating hello world stream ***" << std::endl;
+			
+			auto stream = open_bidirectional_stream();
+			stream->output_buffer().append("Hello World");
+			write_packets();
+		}
+		
 		void Client::connect()
 		{
 			auto path = ngtcp2_conn_get_path(_connection);
 			Socket & socket = *static_cast<Socket *>(path->user_data);
 			
-			std::cerr << *this << " Connect path: " << path->local << " -> " << path->remote << std::endl;
-			
-			Scheduler::Reactor::current->fiber([&]{
-				while (true) {
-					read_packets(socket);
-				}
-			});
-			
-			Scheduler::After delay(0.001);
-			
 			while (true) {
 				write_packets();
-				delay.wait();
+				read_packets(socket);
 			}
 		}
 		

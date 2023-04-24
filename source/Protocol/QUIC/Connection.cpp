@@ -129,7 +129,8 @@ namespace Protocol
 		{
 			try {
 				reinterpret_cast<Connection*>(user_data)->handshake_completed();
-			} catch (...) {
+			} catch (std::exception & error) {
+				std::cerr << "handshake_completed_callback: " << error.what() << std::endl;
 				return NGTCP2_ERR_CALLBACK_FAILURE;
 			}
 			
@@ -138,22 +139,105 @@ namespace Protocol
 		
 		void Connection::handshake_completed()
 		{
-			std::cerr << "*** handshake_completed ***" << std::endl;
+			std::cerr << *this << " *** handshake_completed ***" << std::endl;
+		}
+		
+		int extend_max_local_streams_bidi_callback(ngtcp2_conn *conn, uint64_t max_streams, void *user_data)
+		{
+			try {
+				reinterpret_cast<Connection*>(user_data)->extend_maximum_local_bidirectional_streams(max_streams);
+			} catch (std::exception & error) {
+				std::cerr << "extend_max_local_streams_bidi_callback: " << error.what() << std::endl;
+				return NGTCP2_ERR_CALLBACK_FAILURE;
+			}
+			
+			return 0;
+		}
+		
+		void Connection::extend_maximum_local_bidirectional_streams(std::uint64_t maximum_streams)
+		{
+			std::cerr << *this << " *** extend_maximum_local_bidirectional_streams: " << maximum_streams << " ***" << std::endl;
+		}
+		
+		int extend_max_local_streams_uni_callback(ngtcp2_conn *conn, uint64_t max_streams, void *user_data)
+		{
+			try {
+				reinterpret_cast<Connection*>(user_data)->extend_maximum_local_unidirectional_streams(max_streams);
+			} catch (std::exception & error) {
+				std::cerr << "extend_max_local_streams_uni_callback: " << error.what() << std::endl;
+				return NGTCP2_ERR_CALLBACK_FAILURE;
+			}
+			
+			return 0;
+		}
+		
+		void Connection::extend_maximum_local_unidirectional_streams(std::uint64_t maximum_streams)
+		{
+			std::cerr << *this << " *** extend_maximum_local_unidirectional_streams: " << maximum_streams << " ***" << std::endl;
+		}
+		
+		int stream_open_callback(ngtcp2_conn *conn, int64_t stream_id, void *user_data)
+		{
+			try {
+				reinterpret_cast<Connection*>(user_data)->stream_open(stream_id);
+			} catch (std::exception & error) {
+				std::cerr << "stream_open_callback: " << error.what() << std::endl;
+				return NGTCP2_ERR_CALLBACK_FAILURE;
+			}
+			
+			return 0;
+		}
+		
+		Stream* Connection::stream_open(StreamID stream_id)
+		{
+			std::cerr << *this << " *** stream open ***" << std::endl;
+			return create_stream(stream_id);
+		}
+		
+		int stream_close_callback(ngtcp2_conn *conn, uint32_t flags, StreamID stream_id, uint64_t app_error_code, void *user_data, void *stream_user_data)
+		{
+			try {
+				Stream *stream = reinterpret_cast<Stream*>(stream_user_data);
+				reinterpret_cast<Connection*>(user_data)->stream_close(stream, flags, app_error_code);
+			} catch (std::exception & error) {
+				std::cerr << "stream_close_callback: " << error.what() << std::endl;
+				return NGTCP2_ERR_CALLBACK_FAILURE;
+			}
+			
+			return 0;
+		}
+		
+		void Connection::stream_close(Stream * stream, int32_t flags, uint64_t error_code)
+		{
+			auto iterator = _streams.find(stream->stream_id());
+			
+			if (iterator == _streams.end()) {
+				throw std::runtime_error("stream_close: stream not found");
+			}
+			
+			_streams.erase(iterator);
 		}
 		
 		int receive_stream_data_callback(ngtcp2_conn *conn, uint32_t flags, int64_t stream_id, uint64_t offset, const uint8_t *data, size_t size, void *user_data, void *stream_user_data)
 		{
-			std::cerr << "receive_stream_data_callback: " << stream_id << std::endl;
-			
 			auto stream = reinterpret_cast<Stream*>(stream_user_data);
 			
 			try {
 				stream->input_buffer().append(data, size);
+				reinterpret_cast<Connection*>(user_data)->stream_data(stream);
 			} catch (...) {
 				return NGTCP2_ERR_CALLBACK_FAILURE;
 			}
 			
 			return 0;
+		}
+		
+		void Connection::stream_data(Stream *stream)
+		{
+			std::cerr << *this << " *** stream_data ***" << std::endl;
+			auto data = stream->input_buffer().data();
+			std::cerr << *this << " *** stream_data: " << data << " ***" << std::endl;
+			stream->input_buffer().consume(data.size());
 		}
 		
 		int acked_stream_data_offset_callback(ngtcp2_conn *conn, int64_t stream_id, uint64_t offset, uint64_t datalen, void *user_data, void *stream_user_data)
@@ -201,7 +285,7 @@ namespace Protocol
 			}
 		}
 		
-		void Connection::write_packets(Stream * stream)
+		size_t Connection::write_packets(Stream * stream)
 		{
 			ngtcp2_path_storage path_storage;
 			ngtcp2_path_storage_zero(&path_storage);
@@ -211,24 +295,45 @@ namespace Protocol
 			std::array<Byte, 1024*64> packet;
 			
 			StreamDataFlags flags = 0;
-			if (stream->output_buffer().closed())
+			if (stream->output_buffer().closed()) {
 				flags |= NGTCP2_WRITE_STREAM_FLAG_FIN;
+			}
 			
 			auto chunks = stream->output_buffer().chunks();
 			
-			auto result = ngtcp2_conn_writev_stream(_connection, &path_storage.path, &packet_info, packet.data(), packet.size(), &written_length, flags, stream->stream_id(), chunks.data(), chunks.size(), timestamp());
-			
-			if (result < 0) {
-				throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_write_stream");
-			}
-			
-			if (result > 0) {
-				auto & socket = *reinterpret_cast<Socket*>(path_storage.path.user_data);
+			while (true) {
+				// std::cerr << *this << " *** writing " << chunks.size() << " chunks to " << stream->stream_id() << " ***" << std::endl;
 				
-				auto size = socket.send_packet(packet.data(), result, path_storage.path.remote, static_cast<ECN>(packet_info.ecn));
+				auto result = ngtcp2_conn_writev_stream(_connection, &path_storage.path, &packet_info, packet.data(), packet.size(), &written_length, flags, stream->stream_id(), chunks.data(), chunks.size(), timestamp());
 				
-				if (size > 0)
-					stream->output_buffer().increment(size);
+				if (result == NGTCP2_ERR_STREAM_DATA_BLOCKED) {
+					std::cerr << *this << " *** stream data blocked written_length= " << written_length << " ***" << std::endl;
+					return 0;
+				}
+				
+				if (result < 0) {
+					throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_write_stream");
+				}
+				
+				// std::cerr << *this << " *** written " << written_length << " bytes for " << stream->stream_id() << " ***" << std::endl;
+				
+				if (written_length > 0) {
+					stream->output_buffer().increment(written_length);
+				}
+				
+				if (result > 0) {
+					auto & socket = *reinterpret_cast<Socket*>(path_storage.path.user_data);
+					
+					auto size = socket.send_packet(packet.data(), result, path_storage.path.remote, static_cast<ECN>(packet_info.ecn));
+				}
+				
+				if (written_length > 0) {
+					return written_length;
+				}
+				
+				if (chunks.empty()) {
+					return 0;
+				}
 			}
 		}
 		
@@ -254,8 +359,6 @@ namespace Protocol
 					.remote = remote_address,
 					.user_data = reinterpret_cast<void*>(&socket),
 				};
-				
-				std::cerr << *this << " read_packets: " << path.local << " -> " << path.remote << std::endl;
 				
 				auto packet_info = ngtcp2_pkt_info{
 					.ecn = static_cast<std::uint8_t>(ecn),
@@ -346,8 +449,6 @@ namespace Protocol
 		
 		int get_new_connection_id_callback(ngtcp2_conn *conn, ngtcp2_cid *cid, uint8_t *token, size_t cidlen, void *user_data)
 		{
-			std::cerr << "get_new_connection_id_callback" << std::endl;
-			
 			auto & connection = *reinterpret_cast<Connection*>(user_data);
 			
 			try {
@@ -394,11 +495,28 @@ namespace Protocol
 			callbacks->version_negotiation = ngtcp2_crypto_version_negotiation_cb;
 			
 			callbacks->handshake_completed = handshake_completed_callback;
+			
+			callbacks->extend_max_local_streams_bidi = extend_max_local_streams_bidi_callback;
+			callbacks->extend_max_local_streams_uni = extend_max_local_streams_uni_callback;
+			
+			callbacks->stream_open = stream_open_callback;
+			callbacks->stream_close = stream_close_callback;
+			// callbacks->stream_reset = stream_reset_callback;
+			// callbacks->stream_stop_sending = stream_stop_sending_callback;
+			
 			callbacks->recv_stream_data = receive_stream_data_callback;
 			callbacks->acked_stream_data_offset = acked_stream_data_offset_callback;
 			
 			settings->initial_ts = timestamp();
-			settings->log_printf = log_printf;
+			// settings->log_printf = log_printf;
+			
+			params->initial_max_stream_data_bidi_local = 128 * 1024;
+			params->initial_max_stream_data_bidi_remote = 128 * 1024;
+			params->initial_max_stream_data_uni = 128 * 1024;
+			params->initial_max_data = 1024 * 1024;
+			
+			params->initial_max_streams_bidi = 3;
+			params->initial_max_streams_uni = 3;
 			
 			// The default of 2 is apparently invalid:
 			params->active_connection_id_limit = 7;
@@ -406,8 +524,7 @@ namespace Protocol
 		
 		void Connection::generate_connection_id(ngtcp2_cid *cid, std::size_t cidlen, uint8_t *token)
 		{
-			Random::generate_secure(cid->data, cidlen);
-			cid->datalen = cidlen;
+			generate_cid(cid, cidlen);
 			
 			auto &static_secret = _configuration.static_secret;
 			

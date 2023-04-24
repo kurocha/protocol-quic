@@ -236,7 +236,7 @@ namespace Protocol
 		
 		size_t Socket::send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn)
 		{
-			std::cerr << *this << " send_packet " << size << " bytes to " << destination << std::endl;
+			// std::cerr << *this << " send_packet " << size << " bytes to " << destination << std::endl;
 			
 			iovec iov{
 				.iov_base = const_cast<void *>(data),
@@ -331,7 +331,7 @@ namespace Protocol
 			// Update the address with the actual length:
 			address.length = message.msg_namelen;
 			
-			std::cerr << *this << " receive_packet " << result << " bytes from " << address << std::endl;
+			// std::cerr << *this << " receive_packet " << result << " bytes from " << address << std::endl;
 			
 			return result;
 		}

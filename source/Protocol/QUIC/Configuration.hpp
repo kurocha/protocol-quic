@@ -11,6 +11,8 @@
 #include <array>
 #include <cstdint>
 
+#include <ngtcp2/ngtcp2.h>
+
 namespace Protocol
 {
 	namespace QUIC
@@ -22,8 +24,9 @@ namespace Protocol
 			~Configuration();
 			
 			std::array<std::uint8_t, 32> static_secret;
-		private:
 			
+		protected:
+			virtual void setup(ngtcp2_settings *settings, ngtcp2_transport_params *params);
 		};
 	}
 }

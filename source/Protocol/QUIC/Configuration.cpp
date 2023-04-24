@@ -21,5 +21,9 @@ namespace Protocol
 		Configuration::~Configuration()
 		{
 		}
+		
+		void Configuration::setup(ngtcp2_settings *settings, ngtcp2_transport_params *params)
+		{
+		}
 	}
 }
