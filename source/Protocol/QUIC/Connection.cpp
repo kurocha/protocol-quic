@@ -480,6 +480,8 @@ namespace Protocol
 		
 		void Connection::setup(ngtcp2_callbacks *callbacks, ngtcp2_settings *settings, ngtcp2_transport_params *params)
 		{
+			_configuration.setup(settings, params);
+			
 			// Setup the random data generator:
 			settings->rand_ctx.native_handle = reinterpret_cast<void*>(&_random);
 			callbacks->rand = random_callback;

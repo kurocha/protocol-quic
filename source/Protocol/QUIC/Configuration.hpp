@@ -25,7 +25,6 @@ namespace Protocol
 			
 			std::array<std::uint8_t, 32> static_secret;
 			
-		protected:
 			virtual void setup(ngtcp2_settings *settings, ngtcp2_transport_params *params);
 		};
 	}
