@@ -50,7 +50,7 @@ namespace Protocol
 					auto binding_fiber = std::make_unique<Scheduler::Fiber>("binding", [&] {
 						Scheduler::After delay(0.001);
 						while (true) {
-							binding.write_packets();
+							binding.send_packets();
 							delay.wait();
 						}
 					});

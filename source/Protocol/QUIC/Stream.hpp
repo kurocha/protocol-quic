@@ -19,6 +19,7 @@ namespace Protocol
 	namespace QUIC
 	{
 		using StreamID = std::int64_t;
+		class Connection;
 		
 		class Buffer
 		{
@@ -131,13 +132,26 @@ namespace Protocol
 		
 		class Stream
 		{
+			Connection & _connection;
 			StreamID _stream_id;
 			InputBuffer _input_buffer;
 			OutputBuffer _output_buffer;
 			
 		public:
-			Stream(StreamID stream_id) : _stream_id(stream_id) {}
-			~Stream() {}
+			Stream(Connection &connection, StreamID stream_id) : _connection(connection), _stream_id(stream_id) {}
+			virtual ~Stream() {}
+			
+			// The stream has received data and will append it to the input buffer.
+			virtual void receive_data(std::size_t offset, const void * data, std::size_t size, std::uint32_t flags);
+			virtual std::size_t send_data();
+			
+			// The stream has been closed by the remote peer.
+			virtual void close(std::uint32_t flags, std::uint64_t error_code);
+			
+			// Immediately close the stream.
+			void shutdown(std::uint64_t error_code = 0);
+			void shudown_read(std::uint64_t error_code = 0);
+			void shudown_write(std::uint64_t error_code = 0);
 			
 			StreamID stream_id() const noexcept {return _stream_id;}
 			
@@ -147,5 +161,7 @@ namespace Protocol
 			// The application writes to the output buffer:
 			OutputBuffer & output_buffer() noexcept {return _output_buffer;}
 		};
+		
+		std::ostream & operator<<(std::ostream & output, const Stream & stream);
 	}
 }

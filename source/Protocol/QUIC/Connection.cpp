@@ -74,7 +74,7 @@ namespace Protocol
 		{
 			auto [iterator, inserted] = _streams.emplace(
 				stream_id,
-				std::make_unique<Stream>(stream_id)
+				std::make_unique<Stream>(*this, stream_id)
 			);
 			
 			if (!inserted) {
@@ -215,6 +215,7 @@ namespace Protocol
 				throw std::runtime_error("stream_close: stream not found");
 			}
 			
+			iterator->second->close(flags, error_code);
 			_streams.erase(iterator);
 		}
 		
@@ -223,25 +224,12 @@ namespace Protocol
 			auto stream = reinterpret_cast<Stream*>(stream_user_data);
 			
 			try {
-				stream->input_buffer().append(data, size);
-				reinterpret_cast<Connection*>(user_data)->stream_data(stream);
+				stream->receive_data(offset, data, size, flags);
 			} catch (...) {
 				return NGTCP2_ERR_CALLBACK_FAILURE;
 			}
 			
 			return 0;
-		}
-		
-		void Connection::stream_data(Stream *stream)
-		{
-			std::cerr << *this << " *** stream_data ***" << std::endl;
-			auto data = stream->input_buffer().data();
-			std::cerr << *this << " *** stream_data: " << data << " ***" << std::endl;
-			stream->input_buffer().consume(data.size());
-			
-			// Echo:
-			stream->output_buffer().append(data);
-			write_packets();
 		}
 		
 		int acked_stream_data_offset_callback(ngtcp2_conn *conn, int64_t stream_id, uint64_t offset, uint64_t datalen, void *user_data, void *stream_user_data)
@@ -259,7 +247,7 @@ namespace Protocol
 			return 0;
 		}
 		
-		void Connection::write_packets()
+		void Connection::send_packets()
 		{
 			std::array<Byte, 1024*64> packet;
 			ngtcp2_path_storage path_storage;
@@ -285,70 +273,18 @@ namespace Protocol
 			}
 			
 			for (auto & [stream_id, stream] : _streams) {
-				write_packets(stream.get());
+				stream->send_data();
 			}
 		}
 		
-		size_t Connection::write_packets(Stream * stream)
-		{
-			ngtcp2_path_storage path_storage;
-			ngtcp2_path_storage_zero(&path_storage);
-			ngtcp2_pkt_info packet_info;
-			ngtcp2_ssize written_length = 0;
-			
-			std::array<Byte, 1024*64> packet;
-			
-			StreamDataFlags flags = 0;
-			if (stream->output_buffer().closed()) {
-				flags |= NGTCP2_WRITE_STREAM_FLAG_FIN;
-			}
-			
-			auto chunks = stream->output_buffer().chunks();
-			
-			while (true) {
-				// std::cerr << *this << " *** writing " << chunks.size() << " chunks to " << stream->stream_id() << " ***" << std::endl;
-				
-				auto result = ngtcp2_conn_writev_stream(_connection, &path_storage.path, &packet_info, packet.data(), packet.size(), &written_length, flags, stream->stream_id(), chunks.data(), chunks.size(), timestamp());
-				
-				if (result == NGTCP2_ERR_STREAM_DATA_BLOCKED) {
-					std::cerr << *this << " *** stream data blocked written_length= " << written_length << " ***" << std::endl;
-					return 0;
-				}
-				
-				if (result < 0) {
-					throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_write_stream");
-				}
-				
-				// std::cerr << *this << " *** written " << written_length << " bytes for " << stream->stream_id() << " ***" << std::endl;
-				
-				if (written_length > 0) {
-					stream->output_buffer().increment(written_length);
-				}
-				
-				if (result > 0) {
-					auto & socket = *reinterpret_cast<Socket*>(path_storage.path.user_data);
-					
-					auto size = socket.send_packet(packet.data(), result, path_storage.path.remote, static_cast<ECN>(packet_info.ecn));
-				}
-				
-				if (written_length > 0) {
-					return written_length;
-				}
-				
-				if (chunks.empty()) {
-					return 0;
-				}
-			}
-		}
-		
-		void Connection::read_packets(ngtcp2_path & path, std::size_t count)
+		void Connection::receive_packets(ngtcp2_path & path, std::size_t count)
 		{
 			auto & socket = *reinterpret_cast<Socket*>(path.user_data);
 			
-			read_packets(path, socket, count);
+			receive_packets(path, socket, count);
 		}
 		
-		void Connection::read_packets(Socket & socket, std::size_t count)
+		void Connection::receive_packets(Socket & socket, std::size_t count)
 		{
 			std::array<std::uint8_t, 1024*64> buffer;
 			
@@ -382,7 +318,7 @@ namespace Protocol
 			}
 		}
 		
-		void Connection::read_packets(ngtcp2_path & path, Socket & socket, std::size_t count)
+		void Connection::receive_packets(ngtcp2_path & path, Socket & socket, std::size_t count)
 		{
 			std::array<std::uint8_t, 1024*64> buffer;
 			

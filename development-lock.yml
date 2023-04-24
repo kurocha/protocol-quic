@@ -71,3 +71,15 @@ coroutine:
 coroutine-amd64:
   :commit: 27aee56aa1414094584e7b2d8b74e289ecad4c86
   :branch: master
+platform-darwin-osx:
+  :commit: b3abd55300d433236f97f3450fe05cab7c865214
+  :branch: master
+platform-darwin-ios:
+  :commit: c81ccc5ee73cb1c6ae31e378148c4cb8c9f8759e
+  :branch: master
+build-darwin:
+  :commit: 0d68478a7754741dd5d360f70294161efdee030d
+  :branch: master
+coroutine-arm64:
+  :commit: aada7d279a6c2ae79b6f8f3e45cfa44de3c432fe
+  :branch: master

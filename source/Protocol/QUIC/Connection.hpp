@@ -79,7 +79,6 @@ namespace Protocol
 			virtual void extend_maximum_local_unidirectional_streams(std::uint64_t maximum_streams);
 			
 			virtual Stream* stream_open(StreamID stream_id);
-			virtual void stream_data(Stream * stream);
 			virtual void stream_close(Stream * stream, int32_t flags, uint64_t error_code);
 			// virtual void stream_reset(StreamID stream_id);
 			// virtual void stream_stop_sending(StreamID stream_id);
@@ -88,12 +87,11 @@ namespace Protocol
 			
 			void set_last_error(int result);
 			
-			void write_packets();
-			size_t write_packets(Stream * stream);
+			void send_packets();
 			
-			void read_packets(ngtcp2_path & path, std::size_t count = 1);
-			void read_packets(Socket & socket, std::size_t count = 1);
-			void read_packets(ngtcp2_path & path, Socket & socket, std::size_t count = 1);
+			void receive_packets(ngtcp2_path & path, std::size_t count = 1);
+			void receive_packets(Socket & socket, std::size_t count = 1);
+			void receive_packets(ngtcp2_path & path, Socket & socket, std::size_t count = 1);
 			
 			virtual void print(std::ostream & output) const;
 			

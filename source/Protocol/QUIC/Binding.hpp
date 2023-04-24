@@ -42,7 +42,7 @@ namespace Protocol
 			// Process a single incoming packet from a given remote address.
 			void process_packet(Socket & socket, const Address &remote_address, const Byte * data, std::size_t length, ECN ecn, ngtcp2_version_cid &version_cid);
 			
-			void write_packets();
+			void send_packets();
 			
 		protected:
 			Configuration & _configuration;

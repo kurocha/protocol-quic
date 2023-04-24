@@ -55,10 +55,10 @@ namespace Protocol
 			delete server;
 		}
 		
-		void Binding::write_packets()
+		void Binding::send_packets()
 		{
 			for (auto & server : _servers) {
-				server.second->write_packets();
+				server.second->send_packets();
 			}
 		}
 		

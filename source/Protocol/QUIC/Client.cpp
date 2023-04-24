@@ -67,7 +67,7 @@ namespace Protocol
 			
 			auto stream = open_bidirectional_stream();
 			stream->output_buffer().append("Hello World");
-			write_packets();
+			send_packets();
 		}
 		
 		void Client::connect()
@@ -76,8 +76,8 @@ namespace Protocol
 			Socket & socket = *static_cast<Socket *>(path->user_data);
 			
 			while (true) {
-				write_packets();
-				read_packets(socket);
+				send_packets();
+				receive_packets(socket);
 			}
 		}
 		
