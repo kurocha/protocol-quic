@@ -79,7 +79,9 @@ namespace Protocol
 			virtual void extend_maximum_local_unidirectional_streams(std::uint64_t maximum_streams);
 			
 			virtual Stream* stream_open(StreamID stream_id);
-			virtual void stream_close(Stream * stream, int32_t flags, uint64_t error_code);
+			virtual void stream_close(Stream * stream, std::int32_t flags, std::uint64_t error_code);
+			virtual void stream_reset(Stream * stream, std::size_t final_size, std::uint64_t error_code);
+			
 			// virtual void stream_reset(StreamID stream_id);
 			// virtual void stream_stop_sending(StreamID stream_id);
 			
@@ -104,7 +106,8 @@ namespace Protocol
 			Random _random;
 			
 			std::unordered_map<StreamID, std::unique_ptr<Stream>> _streams;
-			Stream *create_stream(StreamID stream_id);
+			Stream *open_stream(StreamID stream_id);
+			virtual std::unique_ptr<Stream> create_stream(StreamID stream_id) = 0;
 			
 			// Setup default callbacks and related settings.
 			void setup(ngtcp2_callbacks *callbacks, ngtcp2_settings *settings, ngtcp2_transport_params *params);

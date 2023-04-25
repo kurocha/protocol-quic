@@ -7,6 +7,7 @@
 //
 
 #include "Connection.hpp"
+#include "BufferedStream.hpp"
 #include "Configuration.hpp"
 #include "Random.hpp"
 #include "picotls.h"
@@ -70,12 +71,9 @@ namespace Protocol
 				ngtcp2_conn_del(_connection);
 		}
 		
-		Stream *Connection::create_stream(StreamID stream_id)
+		Stream *Connection::open_stream(StreamID stream_id)
 		{
-			auto [iterator, inserted] = _streams.emplace(
-				stream_id,
-				std::make_unique<Stream>(*this, stream_id)
-			);
+			auto [iterator, inserted] = _streams.emplace(stream_id, create_stream(stream_id));
 			
 			if (!inserted) {
 				throw std::runtime_error("Stream already exists!");
@@ -95,7 +93,7 @@ namespace Protocol
 			if (result != 0)
 				throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_open_bidi_stream");
 			
-			return create_stream(stream_id);
+			return open_stream(stream_id);
 		}
 		
 		Stream* Connection::open_unidirectional_stream()
@@ -107,7 +105,7 @@ namespace Protocol
 			if (result != 0)
 				throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_open_uni_stream");
 			
-			return create_stream(stream_id);
+			return open_stream(stream_id);
 		}
 		
 		const ngtcp2_cid * Connection::client_initial_dcid()
@@ -127,8 +125,10 @@ namespace Protocol
 		
 		int handshake_completed_callback(ngtcp2_conn *conn, void *user_data)
 		{
+			Connection *connection = reinterpret_cast<Connection*>(user_data);
+			
 			try {
-				reinterpret_cast<Connection*>(user_data)->handshake_completed();
+				connection->handshake_completed();
 			} catch (std::exception & error) {
 				std::cerr << "handshake_completed_callback: " << error.what() << std::endl;
 				return NGTCP2_ERR_CALLBACK_FAILURE;
@@ -144,8 +144,10 @@ namespace Protocol
 		
 		int extend_max_local_streams_bidi_callback(ngtcp2_conn *conn, uint64_t max_streams, void *user_data)
 		{
+			Connection *connection = reinterpret_cast<Connection*>(user_data);
+			
 			try {
-				reinterpret_cast<Connection*>(user_data)->extend_maximum_local_bidirectional_streams(max_streams);
+				connection->extend_maximum_local_bidirectional_streams(max_streams);
 			} catch (std::exception & error) {
 				std::cerr << "extend_max_local_streams_bidi_callback: " << error.what() << std::endl;
 				return NGTCP2_ERR_CALLBACK_FAILURE;
@@ -161,8 +163,10 @@ namespace Protocol
 		
 		int extend_max_local_streams_uni_callback(ngtcp2_conn *conn, uint64_t max_streams, void *user_data)
 		{
+			Connection *connection = reinterpret_cast<Connection*>(user_data);
+			
 			try {
-				reinterpret_cast<Connection*>(user_data)->extend_maximum_local_unidirectional_streams(max_streams);
+				connection->extend_maximum_local_unidirectional_streams(max_streams);
 			} catch (std::exception & error) {
 				std::cerr << "extend_max_local_streams_uni_callback: " << error.what() << std::endl;
 				return NGTCP2_ERR_CALLBACK_FAILURE;
@@ -178,8 +182,10 @@ namespace Protocol
 		
 		int stream_open_callback(ngtcp2_conn *conn, int64_t stream_id, void *user_data)
 		{
+			Connection *connection = reinterpret_cast<Connection*>(user_data);
+			
 			try {
-				reinterpret_cast<Connection*>(user_data)->stream_open(stream_id);
+				connection->stream_open(stream_id);
 			} catch (std::exception & error) {
 				std::cerr << "stream_open_callback: " << error.what() << std::endl;
 				return NGTCP2_ERR_CALLBACK_FAILURE;
@@ -191,14 +197,16 @@ namespace Protocol
 		Stream* Connection::stream_open(StreamID stream_id)
 		{
 			std::cerr << *this << " *** stream open ***" << std::endl;
-			return create_stream(stream_id);
+			return open_stream(stream_id);
 		}
 		
 		int stream_close_callback(ngtcp2_conn *conn, uint32_t flags, StreamID stream_id, uint64_t app_error_code, void *user_data, void *stream_user_data)
 		{
+			Connection *connection = reinterpret_cast<Connection*>(user_data);
+			Stream *stream = reinterpret_cast<Stream*>(stream_user_data);
+			
 			try {
-				Stream *stream = reinterpret_cast<Stream*>(stream_user_data);
-				reinterpret_cast<Connection*>(user_data)->stream_close(stream, flags, app_error_code);
+				connection->stream_close(stream, flags, app_error_code);
 			} catch (std::exception & error) {
 				std::cerr << "stream_close_callback: " << error.what() << std::endl;
 				return NGTCP2_ERR_CALLBACK_FAILURE;
@@ -219,6 +227,32 @@ namespace Protocol
 			_streams.erase(iterator);
 		}
 		
+		int stream_reset_callback(ngtcp2_conn *conn, int64_t stream_id, uint64_t final_size, uint64_t app_error_code, void *user_data, void *stream_user_data)
+		{
+			Connection *connection = reinterpret_cast<Connection*>(user_data);
+			Stream *stream = reinterpret_cast<Stream*>(stream_user_data);
+
+			try {
+				connection->stream_reset(stream, final_size, app_error_code);
+			} catch (std::exception & error) {
+				return NGTCP2_ERR_CALLBACK_FAILURE;
+			}
+			
+			return 0;
+		}
+		
+		void Connection::stream_reset(Stream * stream, std::size_t final_size, std::uint64_t error_code)
+		{
+			auto iterator = _streams.find(stream->stream_id());
+			
+			if (iterator == _streams.end()) {
+				throw std::runtime_error("stream_reset: stream not found");
+			}
+			
+			iterator->second->reset(final_size, error_code);
+			_streams.erase(iterator);
+		}
+		
 		int receive_stream_data_callback(ngtcp2_conn *conn, uint32_t flags, int64_t stream_id, uint64_t offset, const uint8_t *data, size_t size, void *user_data, void *stream_user_data)
 		{
 			auto stream = reinterpret_cast<Stream*>(stream_user_data);
@@ -232,14 +266,38 @@ namespace Protocol
 			return 0;
 		}
 		
-		int acked_stream_data_offset_callback(ngtcp2_conn *conn, int64_t stream_id, uint64_t offset, uint64_t datalen, void *user_data, void *stream_user_data)
+		int stream_stop_sending_callback(ngtcp2_conn *conn, int64_t stream_id, uint64_t app_error_code, void *user_data, void *stream_user_data)
 		{
-			std::cerr << "acked_stream_data_offset_callback: " << stream_id << std::endl;
-			
 			auto stream = reinterpret_cast<Stream*>(stream_user_data);
 			
 			try {
-				stream->output_buffer().acknowledge(datalen);
+				stream->stop_sending(app_error_code);
+			} catch (...) {
+				return NGTCP2_ERR_CALLBACK_FAILURE;
+			}
+			
+			return 0;
+		}
+		
+		int extend_max_stream_data_callback(ngtcp2_conn *conn, int64_t stream_id, uint64_t max_data, void *user_data, void *stream_user_data)
+		{
+			auto stream = reinterpret_cast<Stream*>(stream_user_data);
+			
+			try {
+				stream->extend_maximum_data(max_data);
+			} catch (...) {
+				return NGTCP2_ERR_CALLBACK_FAILURE;
+			}
+			
+			return 0;
+		}
+		
+		int acked_stream_data_offset_callback(ngtcp2_conn *conn, int64_t stream_id, uint64_t offset, uint64_t datalen, void *user_data, void *stream_user_data)
+		{
+			auto stream = reinterpret_cast<Stream*>(stream_user_data);
+			
+			try {
+				stream->acknowledge_data(datalen);
 			} catch (...) {
 				return NGTCP2_ERR_CALLBACK_FAILURE;
 			}
@@ -443,8 +501,9 @@ namespace Protocol
 			
 			callbacks->stream_open = stream_open_callback;
 			callbacks->stream_close = stream_close_callback;
-			// callbacks->stream_reset = stream_reset_callback;
-			// callbacks->stream_stop_sending = stream_stop_sending_callback;
+			callbacks->stream_reset = stream_reset_callback;
+			callbacks->stream_stop_sending = stream_stop_sending_callback;
+			callbacks->extend_max_stream_data = extend_max_stream_data_callback;
 			
 			callbacks->recv_stream_data = receive_stream_data_callback;
 			callbacks->acked_stream_data_offset = acked_stream_data_offset_callback;

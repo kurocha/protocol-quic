@@ -34,7 +34,7 @@ namespace Protocol
 			void remove(Server * server);
 			
 			// Create a server instance to handle a new connection.
-			virtual std::unique_ptr<Server> create_server(Socket &socket, const Address &address, const ngtcp2_pkt_hd &packet_header);
+			virtual std::unique_ptr<Server> create_server(Socket &socket, const Address &address, const ngtcp2_pkt_hd &packet_header) = 0;
 			
 			// Wait for incoming connections and create servers to handle them.
 			void listen(const Address &address);

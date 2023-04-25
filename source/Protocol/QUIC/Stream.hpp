@@ -21,145 +21,43 @@ namespace Protocol
 		using StreamID = std::int64_t;
 		class Connection;
 		
-		class Buffer
-		{
-			bool _closed = false;
-			
-		public:
-			void close() {_closed = true;}
-			bool closed() const {return _closed;}
-		};
-		
-		class OutputBuffer final : public Buffer
-		{
-			std::vector<std::string> _chunks;
-			std::size_t _acknowledged = 0;
-			std::size_t _offset = 0;
-			
-		public:
-			OutputBuffer() {}
-			~OutputBuffer() {}
-			
-			// Acknowledge that size bytes are now completely written to the remote peer and can be discarded.
-			void acknowledge(std::size_t size)
-			{
-				size += _acknowledged;
-				
-				for (auto iterator = _chunks.begin(); iterator != _chunks.end(); ++iterator) {
-					auto & chunk = *iterator;
-					
-					if (size >= chunk.size()) {
-						size -= chunk.size();
-					} else {
-						_acknowledged = size;
-						_chunks.erase(_chunks.begin(), iterator);
-						break;
-					}
-				}
-			}
-			
-			// Write data to the buffer at the end of the buffer.
-			void append(const void * data, std::size_t size)
-			{
-				_chunks.emplace_back(static_cast<const char *>(data), size);
-			}
-			
-			void append(std::string_view data)
-			{
-				_chunks.emplace_back(data);
-			}
-			
-			std::vector<ngtcp2_vec> chunks()
-			{
-				std::vector<ngtcp2_vec> result;
-				result.reserve(_chunks.size());
-				
-				std::size_t start = 0;
-				
-				for (auto & chunk : _chunks) {
-					auto end = start + chunk.size();
-					
-					// The chunk is before the offset, so we can skip it completely:
-					if (end <= _offset) continue;
-					
-					if (start < _offset) {
-						// The chunk intersects the offset, so we need to skip the start of it:
-						auto delta = _offset - start;
-						result.emplace_back(ngtcp2_vec{
-							reinterpret_cast<uint8_t*>(chunk.data()) + delta,
-							chunk.size() - delta
-						});
-					}
-					else {
-						// The chunk is after the offset, so we can use it as is:
-						result.emplace_back(ngtcp2_vec{
-							reinterpret_cast<uint8_t*>(chunk.data()),
-							chunk.size()
-						});
-					}
-				}
-				
-				return result;
-			}
-			
-			// Mark size bytes as written to the network. We won't try to write those bytes again.
-			void increment(std::size_t size)
-			{
-				_offset += size;
-			}
-		};
-		
-		class InputBuffer final : public Buffer
-		{
-			std::string _data;
-			
-		public:
-			InputBuffer() {}
-			~InputBuffer() {}
-			
-			void append(const void * data, std::size_t size)
-			{
-				_data.append(static_cast<const char *>(data), size);
-			}
-			
-			void consume(std::size_t size)
-			{
-				_data.erase(0, size);
-			}
-			
-			const std::string & data() const noexcept {return _data;}
-		};
-		
 		class Stream
 		{
+		protected:
 			Connection & _connection;
 			StreamID _stream_id;
-			InputBuffer _input_buffer;
-			OutputBuffer _output_buffer;
 			
 		public:
 			Stream(Connection &connection, StreamID stream_id) : _connection(connection), _stream_id(stream_id) {}
-			virtual ~Stream() {}
+			virtual ~Stream();
 			
 			// The stream has received data and will append it to the input buffer.
-			virtual void receive_data(std::size_t offset, const void * data, std::size_t size, std::uint32_t flags);
-			virtual std::size_t send_data();
+			virtual void receive_data(std::size_t offset, const void * data, std::size_t size, std::uint32_t flags) = 0;
+			virtual std::size_t send_data() = 0;
+			
+			virtual void acknowledge_data(std::size_t length) = 0;
+			virtual void extend_maximum_data(std::size_t maximum_data);
 			
 			// The stream has been closed by the remote peer.
 			virtual void close(std::uint32_t flags, std::uint64_t error_code);
 			
-			// Immediately close the stream.
+			// The stream has been reset by the remote peer before receiving all data.
+			// @parameter final_size is the number of bytes that were received before the stream was reset.
+			virtual void reset(std::size_t final_size, std::uint64_t error_code);
+			
+			// Shutdown the read and write sides of the stream.
 			void shutdown(std::uint64_t error_code = 0);
+			
+			// Shutdown the read end of the stream. The application will not receive any more data and the remote stream will receive `stop_sending`.
 			void shudown_read(std::uint64_t error_code = 0);
+			
+			// Shutdown the write end of the stream. The application will not be able to write any more data and the remote stream will receive `reset`. Use `output_buffer.close()` if you intend to close the stream gracefully.
 			void shudown_write(std::uint64_t error_code = 0);
 			
+			// Stop sending data to the remote peer.
+			virtual void stop_sending(std::uint64_t error_code = 0);
+			
 			StreamID stream_id() const noexcept {return _stream_id;}
-			
-			// The application reads from the input buffer:
-			InputBuffer & input_buffer() noexcept {return _input_buffer;}
-			
-			// The application writes to the output buffer:
-			OutputBuffer & output_buffer() noexcept {return _output_buffer;}
 		};
 		
 		std::ostream & operator<<(std::ostream & output, const Stream & stream);

@@ -96,10 +96,10 @@ namespace Protocol
 			}
 		}
 		
-		std::unique_ptr<Server> Binding::create_server(Socket &socket, const Address &address, const ngtcp2_pkt_hd &packet_header)
-		{
-			return std::make_unique<Server>(this, _configuration, _tls_context, socket, address, packet_header);
-		}
+		// std::unique_ptr<Server> Binding::create_server(Socket &socket, const Address &address, const ngtcp2_pkt_hd &packet_header)
+		// {
+		// 	return std::make_unique<Server>(this, _configuration, _tls_context, socket, address, packet_header);
+		// }
 		
 		void Binding::process_packet(Socket & socket, const Address &remote_address, const Byte * data, std::size_t length, ECN ecn, ngtcp2_version_cid &version_cid)
 		{

@@ -7,6 +7,7 @@
 //
 
 #include "Client.hpp"
+#include "BufferedStream.hpp"
 
 #include <stdexcept>
 #include <iostream>
@@ -63,11 +64,6 @@ namespace Protocol
 		
 		void Client::extend_maximum_local_bidirectional_streams(std::uint64_t maximum_streams)
 		{
-			std::cerr << *this << " *** creating hello world stream ***" << std::endl;
-			
-			auto stream = open_bidirectional_stream();
-			stream->output_buffer().append("Hello World");
-			send_packets();
 		}
 		
 		void Client::connect()
