@@ -57,6 +57,9 @@ namespace Protocol
 			// Stop sending data to the remote peer.
 			virtual void stop_sending(std::uint64_t error_code = 0);
 			
+			Connection & connection() noexcept {return _connection;}
+			const Connection & connection() const noexcept {return _connection;}
+			
 			StreamID stream_id() const noexcept {return _stream_id;}
 		};
 		

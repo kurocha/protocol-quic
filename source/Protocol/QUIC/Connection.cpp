@@ -193,7 +193,6 @@ namespace Protocol
 		
 		Stream* Connection::stream_open(StreamID stream_id)
 		{
-			std::cerr << *this << " *** stream open ***" << std::endl;
 			return open_stream(stream_id);
 		}
 		

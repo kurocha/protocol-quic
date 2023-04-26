@@ -54,7 +54,7 @@ namespace Protocol
 		
 		std::ostream & operator<<(std::ostream & output, const Stream & stream)
 		{
-			output << "<Stream@" << &stream << " id=" << stream.stream_id() << ">";
+			output << "<Stream@" << &stream << " connection=" << stream.connection() << " id=" << stream.stream_id() << ">";
 			
 			return output;
 		}

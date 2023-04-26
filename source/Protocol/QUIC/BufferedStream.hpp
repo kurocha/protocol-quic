@@ -10,6 +10,8 @@
 
 #include "Stream.hpp"
 
+#include <stdexcept>
+
 namespace Protocol
 {
 	namespace QUIC
@@ -129,6 +131,9 @@ namespace Protocol
 			
 			void consume(std::size_t size)
 			{
+				if (size > _data.size())
+					throw std::runtime_error("Cannot consume more data than is available!");
+				
 				_data.erase(0, size);
 			}
 			
