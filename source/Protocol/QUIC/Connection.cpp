@@ -139,7 +139,6 @@ namespace Protocol
 		
 		void Connection::handshake_completed()
 		{
-			std::cerr << *this << " *** handshake_completed ***" << std::endl;
 		}
 		
 		int extend_max_local_streams_bidi_callback(ngtcp2_conn *conn, uint64_t max_streams, void *user_data)
@@ -158,7 +157,6 @@ namespace Protocol
 		
 		void Connection::extend_maximum_local_bidirectional_streams(std::uint64_t maximum_streams)
 		{
-			std::cerr << *this << " *** extend_maximum_local_bidirectional_streams: " << maximum_streams << " ***" << std::endl;
 		}
 		
 		int extend_max_local_streams_uni_callback(ngtcp2_conn *conn, uint64_t max_streams, void *user_data)
@@ -177,7 +175,6 @@ namespace Protocol
 		
 		void Connection::extend_maximum_local_unidirectional_streams(std::uint64_t maximum_streams)
 		{
-			std::cerr << *this << " *** extend_maximum_local_unidirectional_streams: " << maximum_streams << " ***" << std::endl;
 		}
 		
 		int stream_open_callback(ngtcp2_conn *conn, int64_t stream_id, void *user_data)
