@@ -52,6 +52,8 @@ namespace Protocol
 		public:
 			using Client::Client;
 			
+			std::vector<std::unique_ptr<EchoStream>> streams;
+			
 			void handshake_completed() override
 			{
 				std::cerr << *this << " Handshake completed -> creating stream" << std::endl;
@@ -60,9 +62,11 @@ namespace Protocol
 				stream->output_buffer().close();
 			}
 			
-			std::unique_ptr<Stream> create_stream(StreamID stream_id) override
+			Stream * create_stream(StreamID stream_id) override
 			{
-				return std::make_unique<EchoStream>(*this, stream_id);
+				auto &stream = streams.emplace_back(std::make_unique<EchoStream>(*this, stream_id));
+				
+				return stream.get();
 			}
 		};
 		
@@ -71,9 +75,13 @@ namespace Protocol
 		public:
 			using Server::Server;
 			
-			std::unique_ptr<Stream> create_stream(StreamID stream_id) override
+			std::vector<std::unique_ptr<EchoStream>> streams;
+			
+			Stream * create_stream(StreamID stream_id) override
 			{
-				return std::make_unique<EchoStream>(*this, stream_id);
+				auto &stream = streams.emplace_back(std::make_unique<EchoStream>(*this, stream_id));
+				
+				return stream.get();
 			}
 		};
 		
@@ -97,7 +105,7 @@ namespace Protocol
 					Configuration configuration;
 					
 					auto addresses = Protocol::QUIC::Address::resolve("localhost", "4433");
-					addresses.resize(1);
+					// addresses.resize(1);
 					
 					Protocol::QUIC::TLS::ServerContext tls_server_context;
 					tls_server_context.load_certificate_file("Protocol/QUIC/server.pem");
@@ -151,7 +159,7 @@ namespace Protocol
 						fibers.push_back(std::move(client_fiber));
 					}
 					
-					bound.reactor.wait(1.0);
+					bound.reactor.run(1.0);
 				}
 			},
 		};

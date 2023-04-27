@@ -15,7 +15,7 @@ build-compile-commands:
   :commit: 1c4b18f86d45426d7dd284c28bc53837e5694b6c
   :branch: main
 scheduler:
-  :commit: 74e118c282b6f5a2d91fda9872fdd82894ff5196
+  :commit: 80957f1449c2c0650dd2039f0c28bfdd2d3e3be2
   :branch: main
 nghttp3:
   :commit: 735fd39749ec5efbaae9de62fa78538c09007b7c
@@ -60,7 +60,7 @@ streams:
   :commit: 2f9141de26e5331ab35fc91c03ab6a60317bbf7c
   :branch: master
 concurrent:
-  :commit: e3a8f9562a4e4b6072e4f992e6695da4b75ee224
+  :commit: 7a5dde9399923c406248ad04903d1e44e847d127
   :branch: master
 time:
   :commit: f96b70a2676522baacaf4229f034b41a837b9ff5
