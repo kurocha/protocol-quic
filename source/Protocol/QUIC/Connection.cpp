@@ -79,9 +79,9 @@ namespace Protocol
 				throw std::runtime_error("Stream already exists!");
 			}
 			
-			ngtcp2_conn_set_stream_user_data(_connection, stream_id, iterator->second.get());
+			ngtcp2_conn_set_stream_user_data(_connection, stream_id, iterator->second);
 			
-			return iterator->second.get();
+			return iterator->second;
 		}
 		
 		Stream* Connection::open_bidirectional_stream()

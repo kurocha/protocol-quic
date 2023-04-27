@@ -34,7 +34,7 @@ namespace Protocol
 			_tls_session = std::make_unique<TLS::ServerSession>(tls_context, _connection);
 		}
 		
-		Server::Server(Binding * binding, Configuration & configuration, TLS::ServerContext & tls_context, Socket & socket, const Address & remote_address, const ngtcp2_pkt_hd & packet_header, ngtcp2_cid *ocid) : Connection(configuration), _binding(binding)
+		Server::Server(Binding & binding, Configuration & configuration, TLS::ServerContext & tls_context, Socket & socket, const Address & remote_address, const ngtcp2_pkt_hd & packet_header, ngtcp2_cid *ocid) : Connection(configuration), _binding(binding)
 		{
 			// Generate the server connection ID:
 			generate_cid(&_scid);
@@ -76,7 +76,7 @@ namespace Protocol
 			
 			after.wait();
 			
-			_binding->remove(this);
+			_binding.remove(this);
 		}
 		
 		void Server::close()
@@ -85,7 +85,7 @@ namespace Protocol
 			
 			after.wait();
 			
-			_binding->remove(this);
+			_binding.remove(this);
 		}
 		
 		void Server::process_packet(Socket & socket, const Address & remote_address, const Byte *data, std::size_t length, ECN ecn)

@@ -48,6 +48,8 @@ namespace Protocol
 				std::vector<std::string> & protocols() {return _protocols;}
 				const std::vector<std::string> & protocols() const {return _protocols;}
 				
+				void add_protocol(std::string protocol) {_protocols.push_back(protocol);}
+				
 			protected:
 				ptls_context_t _context;
 				ptls_openssl_sign_certificate_t _sign_certificate;

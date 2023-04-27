@@ -82,9 +82,9 @@ namespace Protocol
 		public:
 			using Binding::Binding;
 			
-			std::unique_ptr<Server> create_server(Socket &socket, const Address &address, const ngtcp2_pkt_hd &packet_header) override
+			Server * create_server(Socket &socket, const Address &address, const ngtcp2_pkt_hd &packet_header) override
 			{
-				return std::make_unique<EchoServer>(this, _configuration, _tls_context, socket, address, packet_header);
+				return new EchoServer(*this, _configuration, _tls_context, socket, address, packet_header);
 			}
 		};
 		

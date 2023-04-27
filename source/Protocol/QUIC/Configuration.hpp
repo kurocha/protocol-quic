@@ -21,7 +21,7 @@ namespace Protocol
 		{
 		public:
 			Configuration();
-			~Configuration();
+			virtual ~Configuration();
 			
 			std::array<std::uint8_t, 32> static_secret;
 			

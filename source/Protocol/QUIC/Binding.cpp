@@ -96,11 +96,6 @@ namespace Protocol
 			}
 		}
 		
-		// std::unique_ptr<Server> Binding::create_server(Socket &socket, const Address &address, const ngtcp2_pkt_hd &packet_header)
-		// {
-		// 	return std::make_unique<Server>(this, _configuration, _tls_context, socket, address, packet_header);
-		// }
-		
 		void Binding::process_packet(Socket & socket, const Address &remote_address, const Byte * data, std::size_t length, ECN ecn, ngtcp2_version_cid &version_cid)
 		{
 			auto dcid_key = cid_key(version_cid.dcid, version_cid.dcidlen);
@@ -122,15 +117,12 @@ namespace Protocol
 				server->process_packet(socket, remote_address, data, length, ecn);
 				
 				// Associate all the connection IDs with the server:
-				_servers.emplace(dcid_key, server.get());
+				_servers.emplace(dcid_key, server);
 				
 				auto scids = server->scids();
 				for (auto & scid : scids) {
-					associate(&scid, server.get());
+					associate(&scid, server);
 				}
-				
-				// It will be later deleted in the remove() method.
-				(void)server.release();
 			}
 			else {
 				auto server = iterator->second;

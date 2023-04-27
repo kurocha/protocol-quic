@@ -105,9 +105,9 @@ namespace Protocol
 			
 			Random _random;
 			
-			std::unordered_map<StreamID, std::unique_ptr<Stream>> _streams;
+			std::unordered_map<StreamID, Stream *> _streams;
 			Stream *open_stream(StreamID stream_id);
-			virtual std::unique_ptr<Stream> create_stream(StreamID stream_id) = 0;
+			virtual Stream * create_stream(StreamID stream_id) = 0;
 			
 			// Setup default callbacks and related settings.
 			void setup(ngtcp2_callbacks *callbacks, ngtcp2_settings *settings, ngtcp2_transport_params *params);
