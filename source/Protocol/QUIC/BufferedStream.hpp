@@ -18,13 +18,24 @@ namespace Protocol
 	{
 		class Buffer
 		{
+			// Whether the buffer is closed or not.
 			bool _closed = false;
+			
+			// The error code associated with the buffer, if any.
+			// May be set when the buffer is closed.
 			std::uint64_t _error_code = 0;
 			
 		public:
+		// Close the buffer.
 			void close() {_closed = true;}
+			
+			// Close the buffer and set the error code.
 			void close(std::uint64_t error_code) {close(); _error_code = error_code;}
+			
+			// Check if the buffer is closed.
 			bool closed() const {return _closed;}
+			
+			// Get the error code associated with the buffer (only valid if closed).
 			std::uint64_t error_code() const {return _error_code;}
 		};
 		
@@ -140,6 +151,7 @@ namespace Protocol
 			const std::string & data() const noexcept {return _data;}
 		};
 		
+		// The BufferedStream class extends the Stream class to add buffering capabilities. It maintains an input buffer and an output buffer for the stream.
 		class BufferedStream : public Stream
 		{
 		protected:
@@ -150,19 +162,31 @@ namespace Protocol
 			BufferedStream(Connection & connection, StreamID stream_id);
 			virtual ~BufferedStream();
 			
+			// Receive data from the QUIC stream and append it to the input buffer.
 			void receive_data(std::size_t offset, const void *data, std::size_t size, std::uint32_t flags) override;
+			
+			// Send data from the output buffer to the QUIC stream.
+			// @returns the number of bytes sent.
 			std::size_t send_data() override;
 			
+			// Acknowledge receipt of data up to a given length.
 			void acknowledge_data(std::size_t length) override;
 			
+			// Close the stream with the given flags and error code.
 			void close(std::uint32_t flags, std::uint64_t error_code) override;
+			
+			// Reset the stream with the given final size and error code.
 			void reset(std::size_t final_size, std::uint64_t error_code) override;
+			
+			// Stop sending data on the stream with the given error code.
 			void stop_sending(std::uint64_t error_code) override;
 			
-			// The application reads from the input buffer:
+			// Get a reference to the input buffer for the stream.
+			// The application reads from the input buffer.
 			InputBuffer & input_buffer() noexcept {return _input_buffer;}
 			
-			// The application writes to the output buffer:
+			// Get a reference to the output buffer for the stream.
+			// The application writes to the output buffer.
 			OutputBuffer & output_buffer() noexcept {return _output_buffer;}
 		};
 	}

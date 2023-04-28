@@ -17,6 +17,7 @@ namespace Protocol
 {
 	namespace QUIC
 	{
+		// The Configuration class is responsible for holding configuration settings for the QUIC implementation. It provides a virtual method for setting up ngtcp2 settings and transport parameters.
 		class Configuration
 		{
 		public:

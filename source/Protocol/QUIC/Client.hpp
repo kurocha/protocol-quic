@@ -22,6 +22,8 @@ namespace Protocol
 {
 	namespace QUIC
 	{
+		// The Client class is a sub-class of Connection that represents a QUIC client connection. This class is used by the QUIC implementation to manage the state of a QUIC client connection.
+		// Each Client instance is associated with a single QUIC connection and a remote Server instance.
 		class Client : public Connection
 		{
 			void setup(TLS::ClientContext & tls_context, const ngtcp2_cid *dcid, const ngtcp2_cid *scid, const ngtcp2_path *path, std::uint32_t chosen_version, ngtcp2_settings *settings, ngtcp2_transport_params *params);

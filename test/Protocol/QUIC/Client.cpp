@@ -10,7 +10,7 @@
 
 #include <Protocol/QUIC/Client.hpp>
 #include <Protocol/QUIC/Server.hpp>
-#include <Protocol/QUIC/Binding.hpp>
+#include <Protocol/QUIC/Dispatcher.hpp>
 #include <Protocol/QUIC/Configuration.hpp>
 #include <Protocol/QUIC/BufferedStream.hpp>
 
@@ -21,7 +21,6 @@
 #include <memory>
 #include <iostream>
 #include <string_view>
-
 
 namespace Protocol
 {
@@ -85,10 +84,10 @@ namespace Protocol
 			}
 		};
 		
-		class EchoBinding : public Binding
+		class EchoDispatcher : public Dispatcher
 		{
 		public:
-			using Binding::Binding;
+			using Dispatcher::Dispatcher;
 			
 			Server * create_server(Socket &socket, const Address &address, const ngtcp2_pkt_hd &packet_header) override
 			{
@@ -112,7 +111,7 @@ namespace Protocol
 					tls_server_context.load_private_key_file("Protocol/QUIC/server.key");
 					tls_server_context.protocols().push_back("txt");
 					
-					EchoBinding binding(configuration, tls_server_context);
+					EchoDispatcher binding(configuration, tls_server_context);
 					
 					std::vector<std::unique_ptr<Scheduler::Fiber>> fibers;
 					

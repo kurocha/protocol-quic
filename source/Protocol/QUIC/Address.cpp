@@ -64,7 +64,7 @@ namespace Protocol
 			return {};
 		}
 		
-		std::vector<Address> Address::resolve(const char * host, const char * service, int family, int type, int flags)
+		std::vector<Address> Address::resolve(std::string_view host, std::string_view service, int family, int type, int flags)
 		{
 			std::vector<Address> addresses;
 			
@@ -77,7 +77,9 @@ namespace Protocol
 			
 			addrinfo * result = nullptr;
 			
-			if (getaddrinfo(host, service, &hints, &result) != 0) {
+			std::string host_string(host);
+			std::string service_string(service);
+			if (getaddrinfo(host_string.c_str(), service_string.c_str(), &hints, &result) != 0) {
 				throw std::runtime_error("getaddrinfo");
 			}
 			

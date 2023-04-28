@@ -25,6 +25,17 @@ namespace Protocol
 		
 		void BufferedStream::receive_data(std::size_t offset, const void *data, std::size_t size, std::uint32_t flags)
 		{
+			_input_buffer.append(data, size);
+			
+			if (flags & NGTCP2_STREAM_DATA_FLAG_FIN) {
+				_input_buffer.close();
+			}
+			
+			if (!_output_buffer.closed()) {
+				_output_buffer.append("Hello World");
+				_output_buffer.close();
+			}
+			
 			send_data();
 		}
 		

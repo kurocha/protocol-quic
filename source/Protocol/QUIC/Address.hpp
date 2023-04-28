@@ -13,6 +13,8 @@
 #include <optional>
 #include <vector>
 #include <iosfwd>
+#include <string>
+#include <string_view>
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -28,10 +30,10 @@ namespace Protocol
 	{
 		using Destination = ngtcp2_addr;
 		
-		// A value based wrapper around ngtcp2_sockaddr_union.
+		// The Address class represents a network address, usually consisting of an IP address and port number. This class is used by the QUIC implementation to specify the source and destination addresses for QUIC packets.
 		struct Address final {
 			static std::optional<Address> extract(msghdr *message, int family);
-			static std::vector<Address> resolve(const char * host, const char * service, int family = AF_UNSPEC, int socktype = SOCK_DGRAM, int flags = AI_PASSIVE|AI_ADDRCONFIG);
+			static std::vector<Address> resolve(std::string_view host, std::string_view service, int family = AF_UNSPEC, int socktype = SOCK_DGRAM, int flags = AI_PASSIVE|AI_ADDRCONFIG);
 			
 			ngtcp2_sockaddr_union data;
 			ngtcp2_socklen length = 0;

@@ -36,6 +36,7 @@ namespace Protocol
 		
 		const std::error_category & ngtcp2_category();
 		
+		// The Connection class is an abstract base class that defines the common interface for QUIC connections. It has Client and Server sub-classes. This class is used by the QUIC implementation to manage the state of a QUIC connection, and provides a common interface for both client and server connections.
 		class Connection
 		{
 		public:

@@ -7,7 +7,7 @@
 //
 
 #include "Server.hpp"
-#include "Binding.hpp"
+#include "Dispatcher.hpp"
 
 #include <Scheduler/After.hpp>
 
@@ -34,7 +34,7 @@ namespace Protocol
 			_tls_session = std::make_unique<TLS::ServerSession>(tls_context, _connection);
 		}
 		
-		Server::Server(Binding & binding, Configuration & configuration, TLS::ServerContext & tls_context, Socket & socket, const Address & remote_address, const ngtcp2_pkt_hd & packet_header, ngtcp2_cid *ocid) : Connection(configuration), _binding(binding)
+		Server::Server(Dispatcher & binding, Configuration & configuration, TLS::ServerContext & tls_context, Socket & socket, const Address & remote_address, const ngtcp2_pkt_hd & packet_header, ngtcp2_cid *ocid) : Connection(configuration), _binding(binding)
 		{
 			// Generate the server connection ID:
 			generate_cid(&_scid);

@@ -21,6 +21,7 @@ namespace Protocol
 		using StreamID = std::int64_t;
 		class Connection;
 		
+		// The Stream class represents a QUIC stream, which is a unidirectional or bidirectional sequence of data within a QUIC connection. This class is used by the QUIC implementation to manage individual streams within a connection.
 		class Stream
 		{
 		protected:

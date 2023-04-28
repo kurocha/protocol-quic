@@ -1,12 +1,12 @@
 //
-//  Binding.cpp
+//  Dispatcher.cpp
 //  This file is part of the "Protocol QUIC" project and released under the .
 //
 //  Created by Samuel Williams on 20/4/2023.
 //  Copyright, 2023, by Samuel Williams. All rights reserved.
 //
 
-#include "Binding.hpp"
+#include "Dispatcher.hpp"
 #include "Server.hpp"
 
 #include <array>
@@ -19,13 +19,13 @@ namespace Protocol
 {
 	namespace QUIC
 	{
-		Binding::Binding(Configuration & configuration, TLS::ServerContext & tls_context) : _configuration(configuration), _tls_context(tls_context)
+		Dispatcher::Dispatcher(Configuration & configuration, TLS::ServerContext & tls_context) : _configuration(configuration), _tls_context(tls_context)
 		{
 		}
 		
-		Binding::~Binding()
+		Dispatcher::~Dispatcher()
 		{
-			std::cerr << "Binding going out of scope..." << std::endl;
+			std::cerr << "Dispatcher going out of scope..." << std::endl;
 		}
 		
 		std::string cid_key(const Byte * cid, std::size_t length)
@@ -33,17 +33,17 @@ namespace Protocol
 			return std::string(reinterpret_cast<const char *>(cid), length);
 		}
 		
-		void Binding::associate(const ngtcp2_cid *cid, Server * server)
+		void Dispatcher::associate(const ngtcp2_cid *cid, Server * server)
 		{
 			_servers.emplace(cid_key(cid->data, cid->datalen), server);
 		}
 		
-		void Binding::disassociate(const ngtcp2_cid *cid)
+		void Dispatcher::disassociate(const ngtcp2_cid *cid)
 		{
 			_servers.erase(cid_key(cid->data, cid->datalen));
 		}
 		
-		void Binding::remove(Server * server)
+		void Dispatcher::remove(Server * server)
 		{
 			disassociate(server->client_initial_dcid());
 			
@@ -55,40 +55,30 @@ namespace Protocol
 			delete server;
 		}
 		
-		void Binding::send_packets()
+		void Dispatcher::send_packets()
 		{
 			for (auto & server : _servers) {
 				server.second->send_packets();
 			}
 		}
 		
-		void Binding::listen(const Address &address)
+		void Dispatcher::listen(Socket &socket)
 		{
-			Socket *socket = _sockets.emplace_back(
-				std::make_unique<Socket>(address.family())
-			).get();
-			
-			socket->annotate("binding");
-			
-			if (!socket->bind(address)) {
-				throw std::runtime_error("Could not bind to address!");
-			}
-			
 			Address remote_address;
 			ECN ecn = ECN::UNSPECIFIED;
 			std::array<Byte, 1024*64> buffer;
 			
-			while (*socket) {
-				auto length = socket->receive_packet(buffer.data(), buffer.size(), remote_address, ecn);
+			while (socket) {
+				auto length = socket.receive_packet(buffer.data(), buffer.size(), remote_address, ecn);
 				
 				ngtcp2_version_cid version_cid;
 				auto result = ngtcp2_pkt_decode_version_cid(&version_cid, buffer.data(), length, DEFAULT_SCID_LENGTH);
 				
 				if (result == 0) {
-					process_packet(*socket, remote_address, buffer.data(), length, ecn, version_cid);
+					process_packet(socket, remote_address, buffer.data(), length, ecn, version_cid);
 				}
 				else if (result == NGTCP2_ERR_VERSION_NEGOTIATION) {
-					send_version_negotiation(*socket, version_cid, remote_address);
+					send_version_negotiation(socket, version_cid, remote_address);
 				}
 				else {
 					std::cerr << "listen: " << ngtcp2_strerror(result) << std::endl;
@@ -96,7 +86,7 @@ namespace Protocol
 			}
 		}
 		
-		void Binding::process_packet(Socket & socket, const Address &remote_address, const Byte * data, std::size_t length, ECN ecn, ngtcp2_version_cid &version_cid)
+		void Dispatcher::process_packet(Socket & socket, const Address &remote_address, const Byte * data, std::size_t length, ECN ecn, ngtcp2_version_cid &version_cid)
 		{
 			auto dcid_key = cid_key(version_cid.dcid, version_cid.dcidlen);
 			
@@ -130,7 +120,7 @@ namespace Protocol
 			}
 		}
 		
-		void Binding::send_version_negotiation(Socket & socket, ngtcp2_version_cid &version_cid, const Address &address)
+		void Dispatcher::send_version_negotiation(Socket & socket, ngtcp2_version_cid &version_cid, const Address &address)
 		{
 			// std::array<Byte, NGTCP2_MAX_UDP_PAYLOAD_SIZE> buffer;
 		}

@@ -37,6 +37,7 @@ namespace Protocol
 			CONGESTION_EXPERIENCED = 0x03,
 		};
 		
+		// The Socket class represents a UDP socket, which is used for sending and receiving QUIC packets. This class is used by the QUIC implementation to bind or connect a network socket and send and receive packets over that socket.
 		class Socket
 		{
 			std::string _annotation;
