@@ -10,13 +10,12 @@
 
 #include "Connection.hpp"
 #include "Configuration.hpp"
+#include "TLS/ClientSession.hpp"
 
 #include <cstdint>
 #include <memory>
 #include <string_view>
 #include <iosfwd>
-
-#include "TLS/ClientSession.hpp"
 
 namespace Protocol
 {
@@ -38,7 +37,6 @@ namespace Protocol
 			
 		protected:
 			std::unique_ptr<TLS::ClientSession> _tls_session;
-			
 			std::uint32_t _chosen_version;
 			
 			void print(std::ostream & output) const override;

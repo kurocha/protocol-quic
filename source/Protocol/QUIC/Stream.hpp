@@ -32,6 +32,9 @@ namespace Protocol
 			Stream(Connection &connection, StreamID stream_id) : _connection(connection), _stream_id(stream_id) {}
 			virtual ~Stream();
 			
+			// Indicates the stream has been disconnected due to a connection failure.
+			virtual void disconnect();
+			
 			// The stream has received data and will append it to the input buffer.
 			virtual void receive_data(std::size_t offset, const void * data, std::size_t size, std::uint32_t flags) = 0;
 			virtual std::size_t send_data() = 0;

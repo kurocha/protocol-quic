@@ -13,6 +13,8 @@
 #include "Random.hpp"
 #include "TLS/Session.hpp"
 
+#include <Time/Scheduler.hpp>
+
 #include <system_error>
 #include <vector>
 #include <unordered_map>
@@ -82,6 +84,7 @@ namespace Protocol
 			virtual Stream* stream_open(StreamID stream_id);
 			virtual void stream_close(Stream * stream, std::int32_t flags, std::uint64_t error_code);
 			virtual void stream_reset(Stream * stream, std::size_t final_size, std::uint64_t error_code);
+			void remove_stream(StreamID stream_id);
 			
 			// virtual void stream_reset(StreamID stream_id);
 			// virtual void stream_stop_sending(StreamID stream_id);
@@ -105,6 +108,15 @@ namespace Protocol
 			ngtcp2_connection_close_error _last_error;
 			
 			Random _random;
+			
+			Time::Scheduler _time_scheduler;
+			
+			Time::Interval expiry_interval() {
+				return Time::Interval::from_nanoseconds(ngtcp2_conn_get_expiry(_connection));
+			}
+			
+			virtual void handle_expiry();
+			Time::Scheduler::Handle _expiry_handle = {_time_scheduler, [this]{on_expiry();}};
 			
 			std::unordered_map<StreamID, Stream *> _streams;
 			Stream *open_stream(StreamID stream_id);

@@ -10,7 +10,8 @@
 #include "BufferedStream.hpp"
 #include "Configuration.hpp"
 #include "Random.hpp"
-#include "picotls.h"
+
+#include <Time/Interval.hpp>
 
 #include <chrono>
 #include <array>
@@ -27,9 +28,7 @@ namespace Protocol
 	namespace QUIC
 	{
 		Timestamp timestamp() {
-			return std::chrono::duration_cast<std::chrono::nanoseconds>(
-				std::chrono::steady_clock::now().time_since_epoch()
-			).count();
+			Time::Interval().as_nanoseconds();
 		}
 		
 		class Ngtcp2ErrorCategory : public std::error_category
@@ -139,6 +138,9 @@ namespace Protocol
 		
 		void Connection::handshake_completed()
 		{
+			auto interval = Time::Interval::from_nanoseconds(ngtcp2_conn_get_expiry(_connection));
+			
+			
 		}
 		
 		int extend_max_local_streams_bidi_callback(ngtcp2_conn *conn, uint64_t max_streams, void *user_data)
@@ -249,6 +251,11 @@ namespace Protocol
 			_streams.erase(iterator);
 		}
 		
+		void Connection::remove_stream(StreamID stream_id)
+		{
+			_streams.erase(stream_id);
+		}
+		
 		int receive_stream_data_callback(ngtcp2_conn *conn, uint32_t flags, int64_t stream_id, uint64_t offset, const uint8_t *data, size_t size, void *user_data, void *stream_user_data)
 		{
 			auto stream = reinterpret_cast<Stream*>(stream_user_data);
@@ -329,6 +336,8 @@ namespace Protocol
 			for (auto & [stream_id, stream] : _streams) {
 				stream->send_data();
 			}
+			
+			_expiry_handle.reschedule(expiry_interval());
 		}
 		
 		void Connection::receive_packets(ngtcp2_path & path, std::size_t count)
@@ -400,6 +409,21 @@ namespace Protocol
 			}
 		}
 		
+		void Connection::handle_expiry()
+		{
+			auto now = timestamp();
+			auto result = ngtcp2_conn_handle_expiry(_connection, now);
+			
+			if (result != 0) {
+				ngtcp2_connection_close_error_set_transport_error_liberr(&_last_error, result, nullptr, 0);
+				
+				disconnect();
+			}
+			else {
+				send_packets();
+			}
+		}
+		
 		void Connection::handle_error()
 		{
 			if (!_connection || ngtcp2_conn_is_in_closing_period(_connection) || ngtcp2_conn_is_in_draining_period(_connection)) {
@@ -429,6 +453,14 @@ namespace Protocol
 		
 		void Connection::disconnect()
 		{
+			handle_error();
+			
+			_expiry_handle.cancel();
+			
+			for (auto & [stream_id, stream] : _streams) {
+				stream->disconnect();
+			}
+			
 			if (_connection) {
 				ngtcp2_conn_del(_connection);
 				_connection = nullptr;

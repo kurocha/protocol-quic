@@ -18,6 +18,11 @@ namespace Protocol
 	{
 		Stream::~Stream()
 		{
+			_connection.remove_stream(_stream_id);
+		}
+		
+		void Stream::disconnect()
+		{
 		}
 		
 		void Stream::extend_maximum_data(std::size_t maximum_data)
