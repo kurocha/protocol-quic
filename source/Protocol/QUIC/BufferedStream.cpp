@@ -31,11 +31,6 @@ namespace Protocol
 				_input_buffer.close();
 			}
 			
-			if (!_output_buffer.closed()) {
-				_output_buffer.append("Hello World");
-				_output_buffer.close();
-			}
-			
 			send_data();
 		}
 		

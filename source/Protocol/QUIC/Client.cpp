@@ -69,11 +69,11 @@ namespace Protocol
 		void Client::connect()
 		{
 			auto path = ngtcp2_conn_get_path(_connection);
-			Socket & socket = *static_cast<Socket *>(path->user_data);
+			assert(path);
 			
 			while (true) {
 				send_packets();
-				receive_packets(socket);
+				receive_packets(*path);
 			}
 		}
 		

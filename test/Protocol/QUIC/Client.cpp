@@ -111,26 +111,29 @@ namespace Protocol
 					tls_server_context.load_private_key_file("Protocol/QUIC/server.key");
 					tls_server_context.protocols().push_back("txt");
 					
-					EchoDispatcher binding(configuration, tls_server_context);
+					EchoDispatcher dispatcher(configuration, tls_server_context);
 					
 					std::vector<std::unique_ptr<Scheduler::Fiber>> fibers;
 					
-					auto binding_fiber = std::make_unique<Scheduler::Fiber>("binding", [&] {
+					auto dispatcher_fiber = std::make_unique<Scheduler::Fiber>("dispatcher", [&] {
 						Scheduler::After delay(0.001);
 						while (true) {
-							binding.send_packets();
+							dispatcher.send_packets();
 							delay.wait();
 						}
 					});
 					
-					binding_fiber->transfer();
+					dispatcher_fiber->transfer();
 					
 					for (auto & address : addresses) {
 						std::cerr << "Listening on: " << address.to_string() << std::endl;
 						std::string annotation = std::string("listening on ") + address.to_string();
 						
 						auto listening_fiber = std::make_unique<Scheduler::Fiber>(annotation, [&] {
-							binding.listen(address);
+							Socket socket(address.family());
+							socket.bind(address);
+							
+							dispatcher.listen(socket);
 						});
 						
 						listening_fiber->transfer();

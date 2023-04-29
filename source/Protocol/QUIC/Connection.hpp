@@ -86,18 +86,15 @@ namespace Protocol
 			virtual void stream_reset(Stream * stream, std::size_t final_size, std::uint64_t error_code);
 			void remove_stream(StreamID stream_id);
 			
-			// virtual void stream_reset(StreamID stream_id);
-			// virtual void stream_stop_sending(StreamID stream_id);
-			
 			virtual void generate_connection_id(ngtcp2_cid *cid, std::size_t length, uint8_t *token);
 			
 			void set_last_error(int result);
 			
 			void send_packets();
 			
-			void receive_packets(ngtcp2_path & path, std::size_t count = 1);
-			void receive_packets(Socket & socket, std::size_t count = 1);
-			void receive_packets(ngtcp2_path & path, Socket & socket, std::size_t count = 1);
+			// Receive packets from the specified path.
+			void receive_packets(const ngtcp2_path & path, Socket & socket, std::size_t count = 1);
+			void receive_packets(const ngtcp2_path & path, std::size_t count = 1);
 			
 			virtual void print(std::ostream & output) const;
 			
@@ -116,7 +113,7 @@ namespace Protocol
 			}
 			
 			virtual void handle_expiry();
-			Time::Scheduler::Handle _expiry_handle = {_time_scheduler, [this]{on_expiry();}};
+			Time::Scheduler::Handle _expiry_handle = {_time_scheduler, [this]{handle_expiry();}};
 			
 			std::unordered_map<StreamID, Stream *> _streams;
 			Stream *open_stream(StreamID stream_id);

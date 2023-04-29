@@ -89,7 +89,6 @@ namespace Protocol
 		void Dispatcher::process_packet(Socket & socket, const Address &remote_address, const Byte * data, std::size_t length, ECN ecn, ngtcp2_version_cid &version_cid)
 		{
 			auto dcid_key = cid_key(version_cid.dcid, version_cid.dcidlen);
-			
 			auto iterator = _servers.find(dcid_key);
 			
 			if (iterator == std::end(_servers)) {

@@ -28,7 +28,7 @@ namespace Protocol
 	namespace QUIC
 	{
 		Timestamp timestamp() {
-			Time::Interval().as_nanoseconds();
+			return Time::Interval().as_nanoseconds();
 		}
 		
 		class Ngtcp2ErrorCategory : public std::error_category
@@ -340,73 +340,36 @@ namespace Protocol
 			_expiry_handle.reschedule(expiry_interval());
 		}
 		
-		void Connection::receive_packets(ngtcp2_path & path, std::size_t count)
+		void Connection::receive_packets(const ngtcp2_path & path, Socket & socket, std::size_t count)
+		{
+			std::array<std::uint8_t, 1024*64> buffer;
+			
+			while (count > 0) {
+				ECN ecn = ECN::UNSPECIFIED;
+				Address remote_address;
+				
+				auto length = socket.receive_packet(buffer.data(), buffer.size(), remote_address, ecn);
+				
+				auto packet_info = ngtcp2_pkt_info{
+					.ecn = static_cast<std::uint8_t>(ecn),
+				};
+				
+				auto result = ngtcp2_conn_read_pkt(_connection, &path, &packet_info, buffer.data(), length, timestamp());
+				
+				if (result < 0) {
+					set_last_error(result);
+					disconnect();
+				}
+				
+				count -= 1;
+			}
+		}
+		
+		void Connection::receive_packets(const ngtcp2_path & path, std::size_t count)
 		{
 			auto & socket = *reinterpret_cast<Socket*>(path.user_data);
 			
 			receive_packets(path, socket, count);
-		}
-		
-		void Connection::receive_packets(Socket & socket, std::size_t count)
-		{
-			std::array<std::uint8_t, 1024*64> buffer;
-			
-			while (count > 0) {
-				ECN ecn = ECN::UNSPECIFIED;
-				Address remote_address;
-				
-				auto length = socket.receive_packet(buffer.data(), buffer.size(), remote_address, ecn);
-				
-				auto const path = ngtcp2_path{
-					.local = socket.local_address(),
-					.remote = remote_address,
-					.user_data = reinterpret_cast<void*>(&socket),
-				};
-				
-				auto packet_info = ngtcp2_pkt_info{
-					.ecn = static_cast<std::uint8_t>(ecn),
-				};
-				
-				auto result = ngtcp2_conn_read_pkt(_connection, &path, &packet_info, buffer.data(), length, timestamp());
-				
-				if (result < 0) {
-					set_last_error(result);
-					
-					this->disconnect();
-					
-					throw std::runtime_error("ngtcp2_conn_read_pkt");
-				}
-				
-				count -= 1;
-			}
-		}
-		
-		void Connection::receive_packets(ngtcp2_path & path, Socket & socket, std::size_t count)
-		{
-			std::array<std::uint8_t, 1024*64> buffer;
-			
-			while (count > 0) {
-				ECN ecn = ECN::UNSPECIFIED;
-				Address remote_address;
-				
-				auto length = socket.receive_packet(buffer.data(), buffer.size(), remote_address, ecn);
-				
-				auto packet_info = ngtcp2_pkt_info{
-					.ecn = static_cast<std::uint8_t>(ecn),
-				};
-				
-				auto result = ngtcp2_conn_read_pkt(_connection, &path, &packet_info, buffer.data(), length, timestamp());
-				
-				if (result < 0) {
-					set_last_error(result);
-					
-					this->disconnect();
-					
-					throw std::runtime_error("ngtcp2_conn_read_pkt");
-				}
-				
-				count -= 1;
-			}
 		}
 		
 		void Connection::handle_expiry()
