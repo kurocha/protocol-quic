@@ -61,7 +61,7 @@ namespace Protocol
 				}
 			}
 			
-			return {};
+			return std::nullopt;
 		}
 		
 		std::vector<Address> Address::resolve(std::string_view host, std::string_view service, int family, int type, int flags)

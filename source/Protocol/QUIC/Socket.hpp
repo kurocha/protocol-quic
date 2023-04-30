@@ -10,6 +10,8 @@
 
 #include "Address.hpp"
 
+#include <Time/Interval.hpp>
+
 #include <algorithm>
 #include <cstdint>
 #include <string>
@@ -24,6 +26,7 @@ namespace Protocol
 	namespace QUIC
 	{
 		using Byte = std::uint8_t;
+		using Timestamp = Time::Timestamp;
 		
 		enum class ECN : std::uint8_t {
 			// The not-ECT codepoint '00' indicates a packet that is not using ECN.
@@ -67,14 +70,18 @@ namespace Protocol
 			
 			operator bool() const {return _descriptor >= 0;}
 			
-			size_t send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn = ECN::UNSPECIFIED);
+			// @returns the number of bytes sent, or 0 if a timeout occurred.
+			size_t send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn = ECN::UNSPECIFIED, Timestamp * timeout = nullptr);
 			
-			// Address is the remote address that sent the packet.
-			size_t receive_packet(void * data, std::size_t size, Address & address, ECN & ecn);
+			// @parameter address is set to the address of the sender (remote peer).
+			// @returns the number of bytes received, or 0 if a timeout occurred.
+			size_t receive_packet(void * data, std::size_t size, Address & address, ECN & ecn, Timestamp * timeout = nullptr);
 			
 		private:
 			int _descriptor = -1;
-			// The local address we are bound to.
+			
+			// Cached local and remote addresses.
+			// May be set by bind/connect.
 			mutable Address _local_address, _remote_address;
 			
 			ECN _ecn = ECN::UNSPECIFIED;

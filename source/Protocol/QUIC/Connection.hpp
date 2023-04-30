@@ -13,8 +13,6 @@
 #include "Random.hpp"
 #include "TLS/Session.hpp"
 
-#include <Time/Scheduler.hpp>
-
 #include <system_error>
 #include <vector>
 #include <unordered_map>
@@ -29,12 +27,21 @@ namespace Protocol
 	{
 		class Configuration;
 		
-		using Timestamp = ngtcp2_tstamp;
 		using StreamDataFlags = std::uint32_t;
 		
 		constexpr size_t DEFAULT_SCID_LENGTH = 8;
 		
-		Timestamp timestamp();
+		ngtcp2_tstamp timestamp();
+		
+		template <typename ValueType>
+		ValueType * extract_optional(std::optional<ValueType> & value)
+		{
+			if (value) {
+				return &*value;
+			} else {
+				return nullptr;
+			}
+		}
 		
 		const std::error_category & ngtcp2_category();
 		
@@ -57,6 +64,9 @@ namespace Protocol
 			bool is_in_closing_period() const {return ngtcp2_conn_is_in_closing_period(_connection);}
 			bool is_in_draining_period() const {return ngtcp2_conn_is_in_draining_period(_connection);}
 			
+			std::optional<Timestamp> expiry_timeout();
+			Time::Duration close_duration();
+			
 			std::uint64_t bidirectional_streams_available()
 			{
 				return ngtcp2_conn_get_streams_bidi_left(_connection);
@@ -72,6 +82,7 @@ namespace Protocol
 			
 			void create_connection_id();
 			
+			virtual void handle_expiry();
 			virtual void handle_error();
 			virtual void disconnect();
 			
@@ -105,15 +116,6 @@ namespace Protocol
 			ngtcp2_connection_close_error _last_error;
 			
 			Random _random;
-			
-			Time::Scheduler _time_scheduler;
-			
-			Time::Interval expiry_interval() {
-				return Time::Interval::from_nanoseconds(ngtcp2_conn_get_expiry(_connection));
-			}
-			
-			virtual void handle_expiry();
-			Time::Scheduler::Handle _expiry_handle = {_time_scheduler, [this]{handle_expiry();}};
 			
 			std::unordered_map<StreamID, Stream *> _streams;
 			Stream *open_stream(StreamID stream_id);

@@ -72,20 +72,20 @@ namespace Protocol
 		
 		void Server::drain()
 		{
-			Scheduler::After after(3.0 * ngtcp2_conn_get_pto(_connection) / NGTCP2_SECONDS);
+			// Scheduler::After after(3.0 * ngtcp2_conn_get_pto(_connection) / NGTCP2_SECONDS);
 			
-			after.wait();
+			// after.wait();
 			
-			_binding.remove(this);
+			// _binding.remove(this);
 		}
 		
 		void Server::close()
 		{
-			Scheduler::After after(3.0 * ngtcp2_conn_get_pto(_connection) / NGTCP2_SECONDS);
+			// Scheduler::After after(3.0 * ngtcp2_conn_get_pto(_connection) / NGTCP2_SECONDS);
 			
-			after.wait();
+			// after.wait();
 			
-			_binding.remove(this);
+			// _binding.remove(this);
 		}
 		
 		void Server::process_packet(Socket & socket, const Address & remote_address, const Byte *data, std::size_t length, ECN ecn)

@@ -116,7 +116,8 @@ namespace Protocol
 					std::vector<std::unique_ptr<Scheduler::Fiber>> fibers;
 					
 					auto dispatcher_fiber = std::make_unique<Scheduler::Fiber>("dispatcher", [&] {
-						Scheduler::After delay(0.001);
+						Scheduler::After delay(0.1);
+						
 						while (true) {
 							dispatcher.send_packets();
 							delay.wait();

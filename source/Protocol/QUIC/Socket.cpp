@@ -234,7 +234,7 @@ namespace Protocol
 			return 0;
 		}
 		
-		size_t Socket::send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn)
+		size_t Socket::send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn, Timestamp * timeout)
 		{
 			// std::cerr << *this << " send_packet " << size << " bytes to " << destination << std::endl;
 			
@@ -272,11 +272,13 @@ namespace Protocol
 				
 				if (result == -1) {
 					if (errno == EAGAIN || errno == EWOULDBLOCK) {
-						monitor.wait_writable();
+						if (!monitor.wait_writable(timeout)) {
+							return 0;
+						}
 					} else if (errno == EINTR) {
 						// ignore
 					} else {
-						throw std::system_error(errno, std::generic_category(), "recvmsg");
+						throw std::system_error(errno, std::generic_category(), "sendmsg");
 					}
 				}
 			} while (result == -1);
@@ -284,7 +286,7 @@ namespace Protocol
 			return result;
 		}
 		
-		size_t Socket::receive_packet(void *data, std::size_t size, Address &address, ECN &ecn)
+		size_t Socket::receive_packet(void *data, std::size_t size, Address &address, ECN &ecn, Timestamp * timeout)
 		{
 			iovec iov = {
 				.iov_base = data,
@@ -316,7 +318,9 @@ namespace Protocol
 				
 				if (result == -1) {
 					if (errno == EAGAIN || errno == EWOULDBLOCK) {
-						monitor.wait_readable();
+						if (!monitor.wait_readable(timeout)) {
+							return 0;
+						}
 					} else if (errno == EINTR) {
 						// ignore
 					} else {
