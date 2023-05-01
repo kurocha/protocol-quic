@@ -34,7 +34,7 @@ namespace Protocol
 		ngtcp2_tstamp timestamp();
 		
 		template <typename ValueType>
-		ValueType * extract_optional(std::optional<ValueType> & value)
+		ValueType * extract_optional(std::optional<ValueType> value)
 		{
 			if (value) {
 				return &*value;

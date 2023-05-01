@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <Scheduler/Semaphore.hpp>
+
 #include <memory>
 #include <iosfwd>
 
@@ -32,12 +34,16 @@ namespace Protocol
 			
 			void process_packet(Socket & socket, const Address & remote_address, const Byte *data, std::size_t length, ECN ecn);
 			
+			void accept();
+			
 		protected:
 			void drain();
 			void close();
 			
 			Dispatcher & _binding;
 			std::unique_ptr<TLS::ServerSession> _tls_session;
+			
+			Scheduler::Semaphore _received_packets = 0;
 			
 			ngtcp2_cid _scid;
 			

@@ -41,10 +41,10 @@ namespace Protocol
 			virtual Server * create_server(Socket &socket, const Address &address, const ngtcp2_pkt_hd &packet_header) = 0;
 			
 			// Wait for incoming connections and create servers to handle them.
-			void listen(Socket & socket);
+			Server* listen(Socket & socket);
 			
 			// Process a single incoming packet from a given remote address.
-			void process_packet(Socket & socket, const Address &remote_address, const Byte * data, std::size_t length, ECN ecn, ngtcp2_version_cid &version_cid);
+			Server* process_packet(Socket & socket, const Address &remote_address, const Byte * data, std::size_t length, ECN ecn, ngtcp2_version_cid &version_cid);
 			
 			void send_packets();
 			

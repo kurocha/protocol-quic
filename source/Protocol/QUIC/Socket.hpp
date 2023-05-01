@@ -71,11 +71,11 @@ namespace Protocol
 			operator bool() const {return _descriptor >= 0;}
 			
 			// @returns the number of bytes sent, or 0 if a timeout occurred.
-			size_t send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn = ECN::UNSPECIFIED, Timestamp * timeout = nullptr);
+			size_t send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn = ECN::UNSPECIFIED, const Timestamp * timeout = nullptr);
 			
 			// @parameter address is set to the address of the sender (remote peer).
 			// @returns the number of bytes received, or 0 if a timeout occurred.
-			size_t receive_packet(void * data, std::size_t size, Address & address, ECN & ecn, Timestamp * timeout = nullptr);
+			size_t receive_packet(void * data, std::size_t size, Address & address, ECN & ecn, const Timestamp * timeout = nullptr);
 			
 		private:
 			int _descriptor = -1;

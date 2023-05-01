@@ -62,7 +62,7 @@ namespace Protocol
 			}
 		}
 		
-		void Dispatcher::listen(Socket &socket)
+		Server* Dispatcher::listen(Socket &socket)
 		{
 			Address remote_address;
 			ECN ecn = ECN::UNSPECIFIED;
@@ -75,7 +75,11 @@ namespace Protocol
 				auto result = ngtcp2_pkt_decode_version_cid(&version_cid, buffer.data(), length, DEFAULT_SCID_LENGTH);
 				
 				if (result == 0) {
-					process_packet(socket, remote_address, buffer.data(), length, ecn, version_cid);
+					auto server = process_packet(socket, remote_address, buffer.data(), length, ecn, version_cid);
+					
+					if (server) {
+						return server;
+					}
 				}
 				else if (result == NGTCP2_ERR_VERSION_NEGOTIATION) {
 					send_version_negotiation(socket, version_cid, remote_address);
@@ -84,9 +88,11 @@ namespace Protocol
 					std::cerr << "listen: " << ngtcp2_strerror(result) << std::endl;
 				}
 			}
+			
+			return nullptr;
 		}
 		
-		void Dispatcher::process_packet(Socket & socket, const Address &remote_address, const Byte * data, std::size_t length, ECN ecn, ngtcp2_version_cid &version_cid)
+		Server* Dispatcher::process_packet(Socket & socket, const Address &remote_address, const Byte * data, std::size_t length, ECN ecn, ngtcp2_version_cid &version_cid)
 		{
 			auto dcid_key = cid_key(version_cid.dcid, version_cid.dcidlen);
 			auto iterator = _servers.find(dcid_key);
@@ -98,10 +104,11 @@ namespace Protocol
 				
 				if (result != 0) {
 					std::cerr << "process_packet: " << ngtcp2_strerror(result) << std::endl;
-					return;
+					return nullptr;
 				}
 				
 				// TODO: Stateless retry.
+				
 				auto server = this->create_server(socket, remote_address, packet_header);
 				server->process_packet(socket, remote_address, data, length, ecn);
 				
@@ -112,10 +119,13 @@ namespace Protocol
 				for (auto & scid : scids) {
 					associate(&scid, server);
 				}
+				
+				return server;
 			}
 			else {
 				auto server = iterator->second;
 				server->process_packet(socket, remote_address, data, length, ecn);
+				return nullptr;
 			}
 		}
 		

@@ -70,24 +70,6 @@ namespace Protocol
 		{
 		}
 		
-		void Server::drain()
-		{
-			// Scheduler::After after(3.0 * ngtcp2_conn_get_pto(_connection) / NGTCP2_SECONDS);
-			
-			// after.wait();
-			
-			// _binding.remove(this);
-		}
-		
-		void Server::close()
-		{
-			// Scheduler::After after(3.0 * ngtcp2_conn_get_pto(_connection) / NGTCP2_SECONDS);
-			
-			// after.wait();
-			
-			// _binding.remove(this);
-		}
-		
 		void Server::process_packet(Socket & socket, const Address & remote_address, const Byte *data, std::size_t length, ECN ecn)
 		{
 			auto path = ngtcp2_path{
@@ -101,6 +83,10 @@ namespace Protocol
 			};
 			
 			auto result = ngtcp2_conn_read_pkt(_connection, &path, &packet_info, data, length, timestamp());
+			
+			std::cerr << *this << " process_packet: " << result << std::endl;
+			
+			_received_packets.release();
 			
 			if (result == 0) return;
 			
@@ -117,6 +103,40 @@ namespace Protocol
 			
 			set_last_error(result);
 			handle_error();
+		}
+		
+		void Server::accept()
+		{
+			while (true) {
+				bool result = _received_packets.acquire(extract_optional(expiry_timeout()));
+				
+				if (result) {
+					send_packets();
+				}
+				else {
+					// Timeout.
+					handle_expiry();
+					return;
+				}
+			}
+		}
+		
+		void Server::drain()
+		{
+			// Scheduler::After after(3.0 * ngtcp2_conn_get_pto(_connection) / NGTCP2_SECONDS);
+			
+			// after.wait();
+			
+			// _binding.remove(this);
+		}
+		
+		void Server::close()
+		{
+			// Scheduler::After after(3.0 * ngtcp2_conn_get_pto(_connection) / NGTCP2_SECONDS);
+			
+			// after.wait();
+			
+			// _binding.remove(this);
 		}
 		
 		void Server::print(std::ostream & output) const

@@ -332,6 +332,8 @@ namespace Protocol
 			
 			auto result = ngtcp2_conn_write_stream(_connection, &path_storage.path, &packet_info, packet.data(), packet.size(), &written_length, flags, -1, nullptr, 0, timestamp());
 			
+			std::cerr << *this << " ngtcp2_conn_write_stream: " << result << std::endl;
+			
 			if (result < 0) {
 				throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_write_stream");
 			}

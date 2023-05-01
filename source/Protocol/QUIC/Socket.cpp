@@ -234,7 +234,7 @@ namespace Protocol
 			return 0;
 		}
 		
-		size_t Socket::send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn, Timestamp * timeout)
+		size_t Socket::send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn, const Timestamp * timeout)
 		{
 			// std::cerr << *this << " send_packet " << size << " bytes to " << destination << std::endl;
 			
@@ -286,7 +286,7 @@ namespace Protocol
 			return result;
 		}
 		
-		size_t Socket::receive_packet(void *data, std::size_t size, Address &address, ECN &ecn, Timestamp * timeout)
+		size_t Socket::receive_packet(void *data, std::size_t size, Address &address, ECN &ecn, const Timestamp * timeout)
 		{
 			iovec iov = {
 				.iov_base = data,

@@ -91,7 +91,9 @@ namespace Protocol
 			
 			Server * create_server(Socket &socket, const Address &address, const ngtcp2_pkt_hd &packet_header) override
 			{
-				return new EchoServer(*this, _configuration, _tls_context, socket, address, packet_header);
+				auto server = new EchoServer(*this, _configuration, _tls_context, socket, address, packet_header);
+				
+				return server;
 			}
 		};
 		
@@ -115,17 +117,6 @@ namespace Protocol
 					
 					std::vector<std::unique_ptr<Scheduler::Fiber>> fibers;
 					
-					auto dispatcher_fiber = std::make_unique<Scheduler::Fiber>("dispatcher", [&] {
-						Scheduler::After delay(0.1);
-						
-						while (true) {
-							dispatcher.send_packets();
-							delay.wait();
-						}
-					});
-					
-					dispatcher_fiber->transfer();
-					
 					for (auto & address : addresses) {
 						std::cerr << "Listening on: " << address.to_string() << std::endl;
 						std::string annotation = std::string("listening on ") + address.to_string();
@@ -134,7 +125,18 @@ namespace Protocol
 							Socket socket(address.family());
 							socket.bind(address);
 							
-							dispatcher.listen(socket);
+							while (true) {
+								auto server = dispatcher.listen(socket);
+								if (server) {
+									auto server_fiber = std::make_unique<Scheduler::Fiber>("server", [&] {
+										server->accept();
+									});
+									
+									server_fiber->transfer();
+									
+									fibers.push_back(std::move(server_fiber));
+								}
+							}
 						});
 						
 						listening_fiber->transfer();
