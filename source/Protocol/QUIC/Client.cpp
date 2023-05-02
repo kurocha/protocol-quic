@@ -66,14 +66,29 @@ namespace Protocol
 		{
 		}
 		
+		void Client::drain()
+		{
+			auto duration = close_duration();
+			
+			Scheduler::After after(duration);
+			
+			after.wait();
+		}
+		
 		void Client::connect()
 		{
-			auto path = ngtcp2_conn_get_path(_connection);
-			assert(path);
-			
 			while (true) {
 				send_packets();
-				receive_packets(*path);
+				
+				auto path = ngtcp2_conn_get_path(_connection);
+				assert(path);
+				
+				auto status = receive_packets(*path);
+				
+				if (status == Status::DRAINING || status == Status::CLOSING) {
+					// We can immediately disconnect.
+					return;
+				}
 			}
 		}
 		

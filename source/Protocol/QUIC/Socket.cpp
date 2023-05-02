@@ -28,6 +28,8 @@ namespace Protocol
 {
 	namespace QUIC
 	{
+		enum {DEBUG = 0};
+		
 		int set_receive_ecn(int descriptor, int family) {
 			int tos = 1;
 			
@@ -236,7 +238,7 @@ namespace Protocol
 		
 		size_t Socket::send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn, const Timestamp * timeout)
 		{
-			// std::cerr << *this << " send_packet " << size << " bytes to " << destination << std::endl;
+			if (DEBUG) std::cerr << *this << " send_packet " << size << " bytes to " << destination << std::endl;
 			
 			iovec iov{
 				.iov_base = const_cast<void *>(data),
@@ -335,7 +337,7 @@ namespace Protocol
 			// Update the address with the actual length:
 			address.length = message.msg_namelen;
 			
-			// std::cerr << *this << " receive_packet " << result << " bytes from " << address << std::endl;
+			if (DEBUG) std::cerr << *this << " receive_packet " << result << " bytes from " << address << std::endl;
 			
 			return result;
 		}

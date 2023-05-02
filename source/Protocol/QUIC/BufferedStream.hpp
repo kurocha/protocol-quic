@@ -167,7 +167,7 @@ namespace Protocol
 			
 			// Send data from the output buffer to the QUIC stream.
 			// @returns the number of bytes sent.
-			std::size_t send_data() override;
+			Status send_data() override;
 			
 			// Acknowledge receipt of data up to a given length.
 			void acknowledge_data(std::size_t length) override;

@@ -84,25 +84,32 @@ namespace Protocol
 			
 			auto result = ngtcp2_conn_read_pkt(_connection, &path, &packet_info, data, length, timestamp());
 			
-			std::cerr << *this << " process_packet: " << result << std::endl;
-			
 			_received_packets.release();
 			
 			if (result == 0) return;
 			
 			// Error handling:
 			switch (result) {
+				case NGTCP2_ERR_CLOSING:
+					// We initiated the close, so we don't need to do anything.
 				case NGTCP2_ERR_DRAINING:
-					drain();
-
-				case NGTCP2_ERR_RETRY:
-				case NGTCP2_ERR_DROP_CONN:
-					break;
-					// TODO: Oops?
+					// The remote end initiatiated a close.
+					return;
 			}
 			
 			set_last_error(result);
-			handle_error();
+			disconnect();
+		}
+		
+		void Server::drain()
+		{
+			auto duration = close_duration();
+			
+			Scheduler::After after(duration);
+			
+			after.wait();
+			
+			_binding.remove(this);
 		}
 		
 		void Server::accept()
@@ -111,7 +118,13 @@ namespace Protocol
 				bool result = _received_packets.acquire(extract_optional(expiry_timeout()));
 				
 				if (result) {
-					send_packets();
+					Status result = send_packets();
+					
+					if (result == Status::DRAINING || result == Status::CLOSING) {
+						// Drain the connection.
+						drain();
+						return;
+					}
 				}
 				else {
 					// Timeout.
@@ -119,24 +132,6 @@ namespace Protocol
 					return;
 				}
 			}
-		}
-		
-		void Server::drain()
-		{
-			// Scheduler::After after(3.0 * ngtcp2_conn_get_pto(_connection) / NGTCP2_SECONDS);
-			
-			// after.wait();
-			
-			// _binding.remove(this);
-		}
-		
-		void Server::close()
-		{
-			// Scheduler::After after(3.0 * ngtcp2_conn_get_pto(_connection) / NGTCP2_SECONDS);
-			
-			// after.wait();
-			
-			// _binding.remove(this);
 		}
 		
 		void Server::print(std::ostream & output) const

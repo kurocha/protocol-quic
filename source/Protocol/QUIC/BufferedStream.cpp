@@ -34,7 +34,7 @@ namespace Protocol
 			send_data();
 		}
 		
-		std::size_t BufferedStream::send_data()
+		Stream::Status BufferedStream::send_data()
 		{
 			ngtcp2_path_storage path_storage;
 			ngtcp2_path_storage_zero(&path_storage);
@@ -53,17 +53,12 @@ namespace Protocol
 			while (true) {
 				auto result = ngtcp2_conn_writev_stream(_connection.native_handle(), &path_storage.path, &packet_info, packet.data(), packet.size(), &written_length, flags, _stream_id, chunks.data(), chunks.size(), timestamp());
 				
-				if (result == NGTCP2_ERR_STREAM_DATA_BLOCKED) {
-					return 0;
-				}
-				
 				if (result == NGTCP2_ERR_STREAM_SHUT_WR) {
 					_output_buffer.close();
-					return 0;
 				}
 				
 				if (result < 0) {
-					throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_write_stream");
+					return Status(result);
 				}
 				
 				if (written_length > 0) {
@@ -76,14 +71,12 @@ namespace Protocol
 					socket.send_packet(packet.data(), result, path_storage.path.remote, static_cast<ECN>(packet_info.ecn));
 				}
 				
-				if (written_length > 0) {
-					return written_length;
-				}
-				
-				if (chunks.empty()) {
-					return 0;
+				if (written_length > 0 || chunks.empty()) {
+					break;
 				}
 			}
+			
+			return Status::OK;
 		}
 		
 		void BufferedStream::acknowledge_data(std::size_t length)

@@ -15,7 +15,7 @@ build-compile-commands:
   :commit: 1c4b18f86d45426d7dd284c28bc53837e5694b6c
   :branch: main
 scheduler:
-  :commit: 25f9b5bb1f933eea37fbfa486484a2fe16e6083e
+  :commit: d4b9d33c08de41ca2ecaf33ebabfbc64f1c6b779
   :branch: main
 nghttp3:
   :commit: 735fd39749ec5efbaae9de62fa78538c09007b7c

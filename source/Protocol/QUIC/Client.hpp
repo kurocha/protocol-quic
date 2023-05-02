@@ -39,6 +39,8 @@ namespace Protocol
 			std::unique_ptr<TLS::ClientSession> _tls_session;
 			std::uint32_t _chosen_version;
 			
+			void drain();
+			
 			void print(std::ostream & output) const override;
 		};
 	}

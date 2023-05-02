@@ -27,8 +27,6 @@ namespace Protocol
 	{
 		class Configuration;
 		
-		using StreamDataFlags = std::uint32_t;
-		
 		constexpr size_t DEFAULT_SCID_LENGTH = 8;
 		
 		ngtcp2_tstamp timestamp();
@@ -54,6 +52,18 @@ namespace Protocol
 			Connection(Configuration & configuration, ngtcp2_conn * connection = nullptr);
 			virtual ~Connection();
 			
+			enum class Status {
+				OK = 0,
+				
+				RETRY = NGTCP2_ERR_RETRY,
+				DROP = NGTCP2_ERR_DROP_CONN,
+				
+				DRAINING = NGTCP2_ERR_DRAINING,
+				CLOSING = NGTCP2_ERR_CLOSING,
+			};
+			
+			void close();
+			
 			ngtcp2_conn * native_handle() {return _connection;}
 			
 			ngtcp2_connection_close_error last_error() const {return _last_error;}
@@ -61,8 +71,8 @@ namespace Protocol
 			const ngtcp2_cid * client_initial_dcid();
 			std::vector<ngtcp2_cid> scids();
 			
-			bool is_in_closing_period() const {return ngtcp2_conn_is_in_closing_period(_connection);}
-			bool is_in_draining_period() const {return ngtcp2_conn_is_in_draining_period(_connection);}
+			bool is_closing() const {return ngtcp2_conn_is_in_closing_period(_connection);}
+			bool is_draining() const {return ngtcp2_conn_is_in_draining_period(_connection);}
 			
 			std::optional<Timestamp> expiry_timeout();
 			Time::Duration close_duration();
@@ -83,7 +93,6 @@ namespace Protocol
 			void create_connection_id();
 			
 			virtual void handle_expiry();
-			virtual void handle_error();
 			virtual void disconnect();
 			
 			virtual void handshake_completed();
@@ -101,11 +110,11 @@ namespace Protocol
 			
 			void set_last_error(int result);
 			
-			void send_packets();
+			Status send_packets();
 			
 			// Receive packets from the specified path.
-			void receive_packets(const ngtcp2_path & path, Socket & socket, std::size_t count = 1);
-			void receive_packets(const ngtcp2_path & path, std::size_t count = 1);
+			Status receive_packets(const ngtcp2_path & path, Socket & socket, std::size_t count = 1);
+			Status receive_packets(const ngtcp2_path & path, std::size_t count = 1);
 			
 			virtual void print(std::ostream & output) const;
 			

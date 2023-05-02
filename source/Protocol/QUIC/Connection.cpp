@@ -70,6 +70,28 @@ namespace Protocol
 				ngtcp2_conn_del(_connection);
 		}
 		
+		void Connection::close()
+		{
+			std::array<Byte, 1024*64> packet;
+			ngtcp2_path_storage path_storage;
+			ngtcp2_path_storage_zero(&path_storage);
+			ngtcp2_pkt_info packet_info;
+			
+			auto result = ngtcp2_conn_write_connection_close(_connection, &path_storage.path, &packet_info, packet.data(), packet.size(), &_last_error, timestamp());
+			
+			if (result < 0) {
+				throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_write_connection_close");
+			}
+			
+			auto *socket = reinterpret_cast<Socket*>(path_storage.path.user_data);
+			assert(socket);
+			
+			auto expiry_timeout = this->expiry_timeout();
+			socket->send_packet(packet.data(), result, path_storage.path.remote, ECN(packet_info.ecn), extract_optional(expiry_timeout));
+			
+			socket->close();
+		}
+		
 		Stream *Connection::open_stream(StreamID stream_id)
 		{
 			auto [iterator, inserted] = _streams.emplace(stream_id, create_stream(stream_id));
@@ -321,7 +343,7 @@ namespace Protocol
 			return 0;
 		}
 		
-		void Connection::send_packets()
+		Connection::Status Connection::send_packets()
 		{
 			std::array<Byte, 1024*64> packet;
 			ngtcp2_path_storage path_storage;
@@ -330,35 +352,38 @@ namespace Protocol
 			ngtcp2_ssize written_length = 0;
 			StreamDataFlags flags = 0;
 			
-			auto result = ngtcp2_conn_write_stream(_connection, &path_storage.path, &packet_info, packet.data(), packet.size(), &written_length, flags, -1, nullptr, 0, timestamp());
-			
-			std::cerr << *this << " ngtcp2_conn_write_stream: " << result << std::endl;
-			
-			if (result < 0) {
-				throw std::system_error(result, ngtcp2_category(), "ngtcp2_conn_write_stream");
-			}
-			
-			if (result > 0) {
-				auto timeout = expiry_timeout();
-				auto & socket = *reinterpret_cast<Socket*>(path_storage.path.user_data);
+			while (true) {
+				auto result = ngtcp2_conn_write_stream(_connection, &path_storage.path, &packet_info, packet.data(), packet.size(), &written_length, flags, -1, nullptr, 0, timestamp());
 				
-				auto size = socket.send_packet(packet.data(), result, path_storage.path.remote, static_cast<ECN>(packet_info.ecn), extract_optional(timeout));
+				if (result < 0) return Status(result);
 				
-				if (!size) {
-					handle_expiry();
+				if (result > 0) {
+					auto timeout = expiry_timeout();
+					auto & socket = *reinterpret_cast<Socket*>(path_storage.path.user_data);
+					
+					auto size = socket.send_packet(packet.data(), result, path_storage.path.remote, static_cast<ECN>(packet_info.ecn), extract_optional(timeout));
+					
+					if (!size) {
+						handle_expiry();
+					}
+					
+					if (size != result) {
+						throw std::runtime_error("send_packet failed");
+					}
 				}
-				
-				if (size != result) {
-					throw std::runtime_error("send_packet failed");
+				else {
+					break;
 				}
 			}
 			
 			for (auto & [stream_id, stream] : _streams) {
 				stream->send_data();
 			}
+			
+			return Status::OK;
 		}
 		
-		void Connection::receive_packets(const ngtcp2_path & path, Socket & socket, std::size_t count)
+		Connection::Status Connection::receive_packets(const ngtcp2_path & path, Socket & socket, std::size_t count)
 		{
 			std::array<std::uint8_t, 1024*64> buffer;
 			
@@ -370,7 +395,9 @@ namespace Protocol
 				auto size = socket.receive_packet(buffer.data(), buffer.size(), remote_address, ecn, extract_optional(timeout));
 				
 				if (!size) {
-					return handle_expiry();
+					handle_expiry();
+					
+					return Status::DRAINING;
 				}
 				
 				auto packet_info = ngtcp2_pkt_info{
@@ -382,17 +409,24 @@ namespace Protocol
 				if (result < 0) {
 					set_last_error(result);
 					disconnect();
+					
+					return Status(result);
 				}
 				
 				count -= 1;
 			}
+			
+			return Status::OK;
 		}
 		
-		void Connection::receive_packets(const ngtcp2_path & path, std::size_t count)
+		Connection::Status Connection::receive_packets(const ngtcp2_path & path, std::size_t count)
 		{
 			auto & socket = *reinterpret_cast<Socket*>(path.user_data);
 			
-			receive_packets(path, socket, count);
+			if (socket)
+				return receive_packets(path, socket, count);
+			else
+				return Status::CLOSING;
 		}
 		
 		void Connection::handle_expiry()
@@ -410,38 +444,9 @@ namespace Protocol
 			}
 		}
 		
-		void Connection::handle_error()
-		{
-			if (!_connection || ngtcp2_conn_is_in_closing_period(_connection) || ngtcp2_conn_is_in_draining_period(_connection)) {
-				return;
-			}
-			
-			std::array<uint8_t, NGTCP2_MAX_UDP_PAYLOAD_SIZE> buffer;
-			ngtcp2_path_storage path_storage;
-			ngtcp2_path_storage_zero(&path_storage);
-			
-			ngtcp2_pkt_info packet_info;
-			
-			auto result = ngtcp2_conn_write_connection_close(_connection, &path_storage.path, &packet_info, buffer.data(), buffer.size(), &_last_error, timestamp());
-			
-			if (result < 0) {
-				throw std::runtime_error("ngtcp2_conn_write_connection_close");
-			}
-			
-			if (result == 0) {
-				// Nothing to do:
-				return;
-			}
-			
-			auto timeout = expiry_timeout();
-			Socket & socket = *static_cast<Socket *>(path_storage.path.user_data);
-			auto length = socket.send_packet(buffer.data(), result, path_storage.path.remote, static_cast<ECN>(packet_info.ecn), extract_optional(timeout));
-			if (!length) handle_expiry();
-		}
-		
 		void Connection::disconnect()
 		{
-			handle_error();
+			close();
 			
 			for (auto & [stream_id, stream] : _streams) {
 				stream->disconnect();

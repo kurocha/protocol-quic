@@ -17,6 +17,7 @@
 #include <Scheduler/Reactor.hpp>
 #include <Scheduler/Fiber.hpp>
 #include <Scheduler/After.hpp>
+#include <Scheduler/Semaphore.hpp>
 
 #include <memory>
 #include <iostream>
@@ -33,9 +34,11 @@ namespace Protocol
 		public:
 			using BufferedStream::BufferedStream;
 			
+			Scheduler::Semaphore data_received = 0;
+			
 			void receive_data(std::size_t offset, const void *data, std::size_t size, std::uint32_t flags) override
 			{
-				std::cerr << *this << " Received " << size << " bytes: " << std::string_view((const char *)data, size) << std::endl;
+				std::cerr << *this << " Received " << size << " bytes: " << std::string_view((const char *)data, size) << " flags=" << flags << std::endl;
 				
 				if (!_output_buffer.closed()) {
 					// Echo the data:
@@ -43,6 +46,13 @@ namespace Protocol
 				}
 				
 				BufferedStream::receive_data(offset, data, size, flags);
+				
+				if (flags & NGTCP2_STREAM_DATA_FLAG_FIN) {
+					_input_buffer.close();
+					_output_buffer.close();
+					
+					data_received.release();
+				}
 			}
 		};
 		
@@ -53,12 +63,11 @@ namespace Protocol
 			
 			std::vector<std::unique_ptr<EchoStream>> streams;
 			
+			Scheduler::Semaphore handshake = 0;
+			
 			void handshake_completed() override
 			{
-				std::cerr << *this << " Handshake completed -> creating stream" << std::endl;
-				BufferedStream *stream = dynamic_cast<BufferedStream*>(open_bidirectional_stream());
-				stream->output_buffer().append("Hello World");
-				stream->output_buffer().close();
+				handshake.release();
 			}
 			
 			Stream * create_stream(StreamID stream_id) override
@@ -127,12 +136,13 @@ namespace Protocol
 							
 							while (true) {
 								auto server = dispatcher.listen(socket);
+								
 								if (server) {
 									auto server_fiber = std::make_unique<Scheduler::Fiber>("server", [&] {
 										server->accept();
 									});
 									
-									server_fiber->transfer();
+									Scheduler::Reactor::current->transfer(server_fiber.get());
 									
 									fibers.push_back(std::move(server_fiber));
 								}
@@ -156,6 +166,21 @@ namespace Protocol
 							socket.connect(address);
 							
 							EchoClient client(configuration, tls_client_context, socket, address);
+							
+							auto stream_fiber = std::make_unique<Scheduler::Fiber>("stream", [&] {
+								client.handshake.acquire();
+								
+								std::cerr << "Handshake completed -> creating stream" << std::endl;
+								EchoStream *stream = dynamic_cast<EchoStream*>(client.open_bidirectional_stream());
+								stream->output_buffer().append("Hello World");
+								stream->output_buffer().close();
+								stream->data_received.acquire();
+								std::cerr << "(stream fiber) Received data: " << stream->input_buffer().data() << std::endl;
+								client.close();
+							});
+							
+							Scheduler::Reactor::current->transfer(stream_fiber.get());
+							
 							client.connect();
 						});
 						

@@ -19,6 +19,8 @@ namespace Protocol
 	namespace QUIC
 	{
 		using StreamID = std::int64_t;
+		using StreamDataFlags = std::uint32_t;
+		
 		class Connection;
 		
 		// The Stream class represents a QUIC stream, which is a unidirectional or bidirectional sequence of data within a QUIC connection. This class is used by the QUIC implementation to manage individual streams within a connection.
@@ -32,12 +34,37 @@ namespace Protocol
 			Stream(Connection &connection, StreamID stream_id) : _connection(connection), _stream_id(stream_id) {}
 			virtual ~Stream();
 			
+			enum class Status {
+				OK = 0,
+				
+				// The stream does not exist:
+				NOT_FOUND = NGTCP2_ERR_STREAM_NOT_FOUND,
+				
+				// The stream is half closed (local); or stream is being reset:
+				SHUTDOWN_WRITE = NGTCP2_ERR_STREAM_SHUT_WR,
+				
+				// The total length of stream data is too large:
+				INVALID_ARGUMENT = NGTCP2_ERR_INVALID_ARGUMENT,
+				
+				// Stream is blocked because of flow control:
+				DATA_BLOCKED = NGTCP2_ERR_STREAM_DATA_BLOCKED,
+				
+				// Out of memory:
+				NO_MEMORY = NGTCP2_ERR_NOMEM,
+				
+				// User callback failed:
+				CALLBACK_FAILURE = NGTCP2_ERR_CALLBACK_FAILURE,
+				
+				// Packet number is exhausted, and cannot send any more packet:
+				PACKET_NUMBER_EXHAUSTED = NGTCP2_ERR_PKT_NUM_EXHAUSTED,
+			};
+			
 			// Indicates the stream has been disconnected due to a connection failure.
 			virtual void disconnect();
 			
 			// The stream has received data and will append it to the input buffer.
-			virtual void receive_data(std::size_t offset, const void * data, std::size_t size, std::uint32_t flags) = 0;
-			virtual std::size_t send_data() = 0;
+			virtual void receive_data(std::size_t offset, const void * data, std::size_t size, StreamDataFlags flags) = 0;
+			virtual Status send_data() = 0;
 			
 			virtual void acknowledge_data(std::size_t length) = 0;
 			virtual void extend_maximum_data(std::size_t maximum_data);

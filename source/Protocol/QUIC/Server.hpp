@@ -38,7 +38,6 @@ namespace Protocol
 			
 		protected:
 			void drain();
-			void close();
 			
 			Dispatcher & _binding;
 			std::unique_ptr<TLS::ServerSession> _tls_session;
