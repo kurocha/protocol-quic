@@ -52,6 +52,8 @@ namespace Protocol
 			Connection(Configuration & configuration, ngtcp2_conn * connection = nullptr);
 			virtual ~Connection();
 			
+			ngtcp2_conn * native_handle() {return _connection;}
+			
 			enum class Status {
 				OK = 0,
 				
@@ -62,9 +64,14 @@ namespace Protocol
 				CLOSING = NGTCP2_ERR_CLOSING,
 			};
 			
+			// Invoked when receiving a close frame or closing the connection.
+			virtual void disconnect();
+			
+			// Send the close packet, and then invoke `disconnect()`.
 			void close();
 			
-			ngtcp2_conn * native_handle() {return _connection;}
+			virtual void handle_expiry();
+			virtual Status handle_error(int result, std::string_view reason = "");
 			
 			ngtcp2_connection_close_error last_error() const {return _last_error;}
 			
@@ -92,9 +99,6 @@ namespace Protocol
 			
 			void create_connection_id();
 			
-			virtual void handle_expiry();
-			virtual void disconnect();
-			
 			virtual void handshake_completed();
 			
 			// This is often used as an entry point to create new streams:
@@ -108,7 +112,7 @@ namespace Protocol
 			
 			virtual void generate_connection_id(ngtcp2_cid *cid, std::size_t length, uint8_t *token);
 			
-			void set_last_error(int result);
+			void set_last_error(int result, std::string_view reason = "");
 			
 			Status send_packets();
 			

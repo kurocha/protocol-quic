@@ -70,6 +70,13 @@ namespace Protocol
 				ngtcp2_conn_del(_connection);
 		}
 		
+		void Connection::disconnect()
+		{
+			for (auto & [stream_id, stream] : _streams) {
+				stream->disconnect();
+			}
+		}
+		
 		void Connection::close()
 		{
 			std::array<Byte, 1024*64> packet;
@@ -90,6 +97,32 @@ namespace Protocol
 			socket->send_packet(packet.data(), result, path_storage.path.remote, ECN(packet_info.ecn), extract_optional(expiry_timeout));
 			
 			socket->close();
+			
+			disconnect();
+		}
+		
+		void Connection::handle_expiry()
+		{
+			auto now = timestamp();
+			auto result = ngtcp2_conn_handle_expiry(_connection, now);
+			
+			if (result < 0) {
+				handle_error(result, "ngtcp2_conn_handle_expiry");
+			}
+			else {
+				send_packets();
+			}
+		}
+		
+		Connection::Status Connection::handle_error(int result, std::string_view reason)
+		{
+			set_last_error(result, reason);
+			
+			if (result != NGTCP2_ERR_CLOSING) {
+				close();
+			}
+			
+			return Status(result);
 		}
 		
 		Stream *Connection::open_stream(StreamID stream_id)
@@ -407,10 +440,7 @@ namespace Protocol
 				auto result = ngtcp2_conn_read_pkt(_connection, &path, &packet_info, buffer.data(), size, timestamp());
 				
 				if (result < 0) {
-					set_last_error(result);
-					disconnect();
-					
-					return Status(result);
+					return handle_error(result, "ngtcp2_conn_read_pkt");
 				}
 				
 				count -= 1;
@@ -427,35 +457,6 @@ namespace Protocol
 				return receive_packets(path, socket, count);
 			else
 				return Status::CLOSING;
-		}
-		
-		void Connection::handle_expiry()
-		{
-			auto now = timestamp();
-			auto result = ngtcp2_conn_handle_expiry(_connection, now);
-			
-			if (result != 0) {
-				ngtcp2_connection_close_error_set_transport_error_liberr(&_last_error, result, nullptr, 0);
-				
-				disconnect();
-			}
-			else {
-				send_packets();
-			}
-		}
-		
-		void Connection::disconnect()
-		{
-			close();
-			
-			for (auto & [stream_id, stream] : _streams) {
-				stream->disconnect();
-			}
-			
-			if (_connection) {
-				ngtcp2_conn_del(_connection);
-				_connection = nullptr;
-			}
 		}
 		
 		void random_callback(std::uint8_t *dest, std::size_t size, const ngtcp2_rand_ctx *context)
@@ -553,15 +554,17 @@ namespace Protocol
 			}
 		}
 		
-		void Connection::set_last_error(int result)
+		void Connection::set_last_error(int result, std::string_view reason)
 		{
-			std::cerr << *this << " ngtcp2: " << ngtcp2_strerror(result) << std::endl;
+			std::cerr << *this << " set_last_error: " << ngtcp2_strerror(result);
+			if (reason.size()) std::cerr << "(" << reason << ")";
+			std::cerr << std::endl;
 			
 			if (!_last_error.error_code) {
 				if (result == NGTCP2_ERR_CRYPTO) {
-					ngtcp2_connection_close_error_set_transport_error_tls_alert(&_last_error, ngtcp2_conn_get_tls_alert(_connection), nullptr, 0);
+					ngtcp2_connection_close_error_set_transport_error_tls_alert(&_last_error, ngtcp2_conn_get_tls_alert(_connection), reinterpret_cast<const uint8_t *>(reason.data()), reason.size());
 				} else {
-					ngtcp2_connection_close_error_set_transport_error_liberr(&_last_error, result, nullptr, 0);
+					ngtcp2_connection_close_error_set_transport_error_liberr(&_last_error, result, reinterpret_cast<const uint8_t *>(reason.data()), reason.size());
 				}
 			}
 		}
