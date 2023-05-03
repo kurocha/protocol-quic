@@ -66,6 +66,8 @@ namespace Protocol
 		
 		Connection::~Connection()
 		{
+			disconnect();
+			
 			if (_connection)
 				ngtcp2_conn_del(_connection);
 		}
@@ -319,9 +321,9 @@ namespace Protocol
 			_streams.erase(iterator);
 		}
 		
-		void Connection::remove_stream(StreamID stream_id)
+		void Connection::remove(Stream * stream)
 		{
-			_streams.erase(stream_id);
+			_streams.erase(stream->stream_id());
 		}
 		
 		int receive_stream_data_callback(ngtcp2_conn *conn, uint32_t flags, int64_t stream_id, uint64_t offset, const uint8_t *data, size_t size, void *user_data, void *stream_user_data)

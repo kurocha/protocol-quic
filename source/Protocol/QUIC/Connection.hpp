@@ -108,7 +108,7 @@ namespace Protocol
 			virtual Stream* stream_open(StreamID stream_id);
 			virtual void stream_close(Stream * stream, std::int32_t flags, std::uint64_t error_code);
 			virtual void stream_reset(Stream * stream, std::size_t final_size, std::uint64_t error_code);
-			void remove_stream(StreamID stream_id);
+			void remove(Stream * stream);
 			
 			virtual void generate_connection_id(ngtcp2_cid *cid, std::size_t length, uint8_t *token);
 			

@@ -28,6 +28,13 @@ namespace Protocol
 			std::cerr << "Dispatcher going out of scope..." << std::endl;
 		}
 		
+		void Dispatcher::close()
+		{
+			for (auto & server : _servers) {
+				server.second->close();
+			}
+		}
+		
 		std::string cid_key(const Byte * cid, std::size_t length)
 		{
 			return std::string(reinterpret_cast<const char *>(cid), length);

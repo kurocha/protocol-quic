@@ -115,7 +115,6 @@ namespace Protocol
 					Configuration configuration;
 					
 					auto addresses = Protocol::QUIC::Address::resolve("localhost", "4433");
-					// addresses.resize(1);
 					
 					Protocol::QUIC::TLS::ServerContext tls_server_context;
 					tls_server_context.load_certificate_file("Protocol/QUIC/server.pem");
