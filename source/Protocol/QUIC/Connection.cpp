@@ -81,6 +81,8 @@ namespace Protocol
 		
 		void Connection::close()
 		{
+			assert(_connection);
+			
 			std::array<Byte, 1024*64> packet;
 			ngtcp2_path_storage path_storage;
 			ngtcp2_path_storage_zero(&path_storage);
@@ -93,7 +95,6 @@ namespace Protocol
 			}
 			
 			auto *socket = reinterpret_cast<Socket*>(path_storage.path.user_data);
-			assert(socket);
 			
 			auto expiry_timeout = this->expiry_timeout();
 			socket->send_packet(packet.data(), result, path_storage.path.remote, ECN(packet_info.ecn), extract_optional(expiry_timeout));
@@ -321,9 +322,9 @@ namespace Protocol
 			_streams.erase(iterator);
 		}
 		
-		void Connection::remove(Stream * stream)
+		void Connection::remove_stream(StreamID stream_id)
 		{
-			_streams.erase(stream->stream_id());
+			_streams.erase(stream_id);
 		}
 		
 		int receive_stream_data_callback(ngtcp2_conn *conn, uint32_t flags, int64_t stream_id, uint64_t offset, const uint8_t *data, size_t size, void *user_data, void *stream_user_data)

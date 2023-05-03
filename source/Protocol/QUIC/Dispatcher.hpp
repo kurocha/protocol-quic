@@ -29,6 +29,7 @@ namespace Protocol
 			Dispatcher(Configuration & configuration, TLS::ServerContext & tls_context);
 			virtual ~Dispatcher();
 			
+			// Close the dispatcher and all associated servers.
 			void close();
 			
 			const Configuration & configuration() const noexcept {return _configuration;}

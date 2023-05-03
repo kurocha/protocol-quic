@@ -156,11 +156,10 @@ namespace Protocol
 					Protocol::QUIC::TLS::ClientContext tls_client_context;
 					tls_client_context.protocols().push_back("txt");
 					
-					std::cerr << "Creating clients..." << std::endl;
-					for (auto & address : addresses) {
-						std::string annotation = std::string("connecting to ") + address.to_string();
-
-						auto client_fiber = std::make_unique<Scheduler::Fiber>(annotation, [&] {
+					auto client_fiber = std::make_unique<Scheduler::Fiber>([&] {
+						for (auto & address : addresses) {
+							Scheduler::Fiber::current->annotate(std::string("connecting to ") + address.to_string());
+							
 							Socket socket(address.family());
 							socket.connect(address);
 							
@@ -181,12 +180,14 @@ namespace Protocol
 							Scheduler::Reactor::current->transfer(stream_fiber.get());
 							
 							client.connect();
-						});
+						}
 						
-						client_fiber->transfer();
-						
-						fibers.push_back(std::move(client_fiber));
-					}
+						dispatcher.close();
+					});
+					
+					client_fiber->transfer();
+					
+					fibers.push_back(std::move(client_fiber));
 					
 					bound.reactor.run(1.0);
 				}
