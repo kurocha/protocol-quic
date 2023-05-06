@@ -32,6 +32,8 @@ namespace Protocol
 			Server(Dispatcher & binding, Configuration & configuration, TLS::ServerContext & tls_context, Socket & socket, const Address & remote_address, const ngtcp2_pkt_hd & packet_header, ngtcp2_cid *ocid = nullptr);
 			virtual ~Server();
 			
+			void disconnect() override;
+			
 			void process_packet(Socket & socket, const Address & remote_address, const Byte *data, std::size_t length, ECN ecn);
 			
 			void accept();
@@ -39,7 +41,7 @@ namespace Protocol
 		protected:
 			void drain();
 			
-			Dispatcher & _binding;
+			Dispatcher & _dispatcher;
 			std::unique_ptr<TLS::ServerSession> _tls_session;
 			
 			Scheduler::Semaphore _received_packets = 0;

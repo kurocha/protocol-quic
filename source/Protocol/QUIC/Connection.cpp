@@ -96,10 +96,10 @@ namespace Protocol
 			
 			auto *socket = reinterpret_cast<Socket*>(path_storage.path.user_data);
 			
-			auto expiry_timeout = this->expiry_timeout();
-			socket->send_packet(packet.data(), result, path_storage.path.remote, ECN(packet_info.ecn), extract_optional(expiry_timeout));
-			
-			socket->close();
+			if (socket) {
+				auto expiry_timeout = this->expiry_timeout();
+				socket->send_packet(packet.data(), result, path_storage.path.remote, ECN(packet_info.ecn), extract_optional(expiry_timeout));
+			}
 			
 			disconnect();
 		}

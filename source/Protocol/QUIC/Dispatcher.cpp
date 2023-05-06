@@ -30,8 +30,9 @@ namespace Protocol
 		
 		void Dispatcher::close()
 		{
-			for (auto & server : _servers) {
-				server.second->close();
+			while (!_servers.empty()) {
+				auto server = _servers.begin()->second;
+				server->close();
 			}
 		}
 		
@@ -58,8 +59,6 @@ namespace Protocol
 			for (auto & scid : scids) {
 				disassociate(&scid);
 			}
-			
-			delete server;
 		}
 		
 		void Dispatcher::send_packets()

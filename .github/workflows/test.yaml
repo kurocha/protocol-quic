@@ -1,0 +1,36 @@
+name: Test
+
+on: [push, pull_request]
+
+env:
+  CONSOLE_OUTPUT: XTerm
+  PKG_CONFIG_PATH: "/usr/local/opt/openssl@3.1/lib/pkgconfig"
+
+jobs:
+  test:
+    name: ${{matrix.ruby}} on ${{matrix.os}}
+    runs-on: ${{matrix.os}}-latest
+    
+    strategy:
+      matrix:
+        os:
+          - ubuntu
+          - macos
+        
+        ruby:
+          - "3.2"
+    
+    steps:
+    - uses: actions/checkout@v2
+    - uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{matrix.ruby}}
+        bundler-cache: true
+    
+    - uses: kurocha/setup-cpp@master
+    
+    - name: Run tests
+      timeout-minutes: 5
+      run: |
+        bundle exec teapot fetch
+        bundle exec teapot build Test/Protocol/QUIC

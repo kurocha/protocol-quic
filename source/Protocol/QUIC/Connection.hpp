@@ -68,7 +68,7 @@ namespace Protocol
 			virtual void disconnect();
 			
 			// Send the close packet, and then invoke `disconnect()`.
-			void close();
+			virtual void close();
 			
 			virtual void handle_expiry();
 			virtual Status handle_error(int result, std::string_view reason = "");

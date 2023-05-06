@@ -130,6 +130,9 @@ namespace Protocol
 						std::string annotation = std::string("listening on ") + address.to_string();
 						
 						auto listening_fiber = std::make_unique<Scheduler::Fiber>(annotation, [&] {
+							// This fiber won't prevent the event loop from exiting.
+							Scheduler::Fiber::current->transient = true;
+							
 							Socket socket(address.family());
 							socket.bind(address);
 							
@@ -168,12 +171,14 @@ namespace Protocol
 							auto stream_fiber = std::make_unique<Scheduler::Fiber>("stream", [&] {
 								client.handshake.acquire();
 								
-								std::cerr << "Handshake completed -> creating stream" << std::endl;
 								EchoStream *stream = dynamic_cast<EchoStream*>(client.open_bidirectional_stream());
 								stream->output_buffer().append("Hello World");
 								stream->output_buffer().close();
 								stream->data_received.acquire();
-								std::cerr << "(stream fiber) Received data: " << stream->input_buffer().data() << std::endl;
+								
+								// The content was echoed back:
+								examiner.expect(stream->input_buffer().data()).to(be == "Hello World");
+								
 								client.close();
 							});
 							
@@ -189,7 +194,9 @@ namespace Protocol
 					
 					fibers.push_back(std::move(client_fiber));
 					
-					bound.reactor.run(1.0);
+					bound.reactor.run();
+					
+					
 				}
 			},
 		};
