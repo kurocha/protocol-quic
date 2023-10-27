@@ -113,9 +113,17 @@ namespace Protocol
 			this->length = length;
 		}
 		
+		static const char * family_name(int family) {
+			switch (family) {
+				case AF_INET: return "AF_INET";
+				case AF_INET6: return "AF_INET6";
+				default: return "AF_UNKNOWN";
+			}
+		}
+		
 		std::ostream & operator<<(std::ostream & output, const Address & address)
 		{
-			output << "<Address family=" << address.data.sa.sa_family << " address=" << address.to_string() << ">";
+			output << "<Address family=" << family_name(address.data.sa.sa_family) << " address=" << address.to_string() << ">";
 			
 			return output;
 		}

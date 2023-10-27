@@ -108,7 +108,11 @@ namespace Protocol
 		
 		void Socket::close() {
 				if (_descriptor >= 0) {
-					::close(_descriptor);
+					auto result = ::close(_descriptor);
+					
+					if (result == -1) {
+						throw std::system_error(errno, std::generic_category(), "close");
+					}
 					
 					_descriptor = -1;
 				}
