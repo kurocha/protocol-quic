@@ -84,7 +84,7 @@ namespace Protocol
 			};
 			
 			auto packet_info = ngtcp2_pkt_info{
-				.ecn = static_cast<uint32_t>(ecn),
+				.ecn = static_cast<uint8_t>(ecn),
 			};
 			
 			auto result = ngtcp2_conn_read_pkt(_connection, &path, &packet_info, data, length, timestamp());

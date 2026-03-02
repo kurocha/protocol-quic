@@ -61,7 +61,7 @@ namespace Protocol
 		
 		Connection::Connection(Configuration & configuration, ngtcp2_conn * connection) : _configuration(configuration), _connection(connection)
 		{
-			ngtcp2_connection_close_error_default(&_last_error);
+			ngtcp2_ccerr_default(&_last_error);
 		}
 		
 		Connection::~Connection()
@@ -172,7 +172,8 @@ namespace Protocol
 		
 		std::vector<ngtcp2_cid> Connection::scids()
 		{
-			auto count = ngtcp2_conn_get_num_scid(_connection);
+			// auto count = ngtcp2_conn_get_num_scid(_connection);
+			auto count = ngtcp2_conn_get_scid(_connection, NULL);
 			std::vector<ngtcp2_cid> result(count);
 			
 			ngtcp2_conn_get_scid(_connection, result.data());
@@ -565,9 +566,9 @@ namespace Protocol
 			
 			if (!_last_error.error_code) {
 				if (result == NGTCP2_ERR_CRYPTO) {
-					ngtcp2_connection_close_error_set_transport_error_tls_alert(&_last_error, ngtcp2_conn_get_tls_alert(_connection), reinterpret_cast<const uint8_t *>(reason.data()), reason.size());
+					ngtcp2_ccerr_set_tls_alert(&_last_error, ngtcp2_conn_get_tls_alert(_connection), reinterpret_cast<const uint8_t *>(reason.data()), reason.size());
 				} else {
-					ngtcp2_connection_close_error_set_transport_error_liberr(&_last_error, result, reinterpret_cast<const uint8_t *>(reason.data()), reason.size());
+					ngtcp2_ccerr_set_liberr(&_last_error, result, reinterpret_cast<const uint8_t *>(reason.data()), reason.size());
 				}
 			}
 		}

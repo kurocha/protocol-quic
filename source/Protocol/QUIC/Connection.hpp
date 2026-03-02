@@ -27,18 +27,16 @@ namespace Protocol
 	{
 		class Configuration;
 		
+		typedef ngtcp2_ccerr ngtcp2_connection_close_error;
+		
 		constexpr size_t DEFAULT_SCID_LENGTH = 8;
 		
 		ngtcp2_tstamp timestamp();
 		
-		template <typename ValueType>
-		ValueType * extract_optional(std::optional<ValueType> value)
+		template <typename OptionalType>
+		auto extract_optional(OptionalType && value)
 		{
-			if (value) {
-				return &*value;
-			} else {
-				return nullptr;
-			}
+			return value ? &*value : nullptr;
 		}
 		
 		const std::error_category & ngtcp2_category();
@@ -78,8 +76,8 @@ namespace Protocol
 			const ngtcp2_cid * client_initial_dcid();
 			std::vector<ngtcp2_cid> scids();
 			
-			bool is_closing() const {return ngtcp2_conn_is_in_closing_period(_connection);}
-			bool is_draining() const {return ngtcp2_conn_is_in_draining_period(_connection);}
+			bool is_closing() const {return ngtcp2_conn_in_closing_period(_connection);}
+			bool is_draining() const {return ngtcp2_conn_in_draining_period(_connection);}
 			
 			std::optional<Timestamp> expiry_timeout();
 			Time::Duration close_duration();

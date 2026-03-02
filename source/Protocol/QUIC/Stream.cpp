@@ -40,17 +40,17 @@ namespace Protocol
 		
 		void Stream::shudown_read(std::uint64_t error_code)
 		{
-			ngtcp2_conn_shutdown_stream_read(_connection.native_handle(), _stream_id, error_code);
+			ngtcp2_conn_shutdown_stream_read(_connection.native_handle(), 0, _stream_id, error_code);
 		}
 		
 		void Stream::shudown_write(std::uint64_t error_code)
 		{
-			ngtcp2_conn_shutdown_stream_write(_connection.native_handle(), _stream_id, error_code);
+			ngtcp2_conn_shutdown_stream_write(_connection.native_handle(), 0, _stream_id, error_code);
 		}
 		
 		void Stream::shutdown(std::uint64_t error_code)
 		{
-			ngtcp2_conn_shutdown_stream(_connection.native_handle(), _stream_id, error_code);
+			ngtcp2_conn_shutdown_stream(_connection.native_handle(), 0, _stream_id, error_code);
 		}
 		
 		void Stream::stop_sending(std::uint64_t error_code)

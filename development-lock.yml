@@ -18,10 +18,10 @@ scheduler:
   :commit: 55191d4c552626c26e5772f2b9a48d58306241f9
   :branch: main
 nghttp3:
-  :commit: 735fd39749ec5efbaae9de62fa78538c09007b7c
+  :commit: 922c2aaca406840a63ce2c4a808d9c888538671d
   :branch: main
 ngtcp2:
-  :commit: 8cea50a8c2b57a9337fc0b3ace31c6799111bf0d
+  :commit: c65334b60a04200b1691da3d85d38444c5ff951d
   :branch: main
 build-make:
   :commit: 50998307f3d1f462c2bda1999b42b2ea8aeb4b15
@@ -30,7 +30,7 @@ build-cmake:
   :commit: 6558fdad5bbb475f0fa5584ff773de8f12ff232e
   :branch: master
 picotls:
-  :commit: 57803ad4f620cfd3d4a40de7389f0980f3ca19e8
+  :commit: 2bc03af57a8ea09f3b0bd11c47c876fd3bc1d9fc
   :branch: main
 openssl:
   :commit: 2f48d686aaaf20dc6d7e8a277803657eb5951530

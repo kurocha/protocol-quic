@@ -18,6 +18,7 @@
 #include <memory>
 #include <array>
 #include <stdexcept>
+#include <cstdint>
 #include <iostream>
 
 namespace Protocol
