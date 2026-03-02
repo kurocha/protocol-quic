@@ -18,7 +18,7 @@ jobs:
           - macos
         
         ruby:
-          - "3.2"
+          - "4.0"
     
     steps:
     - uses: actions/checkout@v2
@@ -27,7 +27,7 @@ jobs:
         ruby-version: ${{matrix.ruby}}
         bundler-cache: true
     
-    - uses: kurocha/setup-cpp@master
+    - uses: kurocha/setup-cpp@main
     
     - name: Run tests
       timeout-minutes: 5
