@@ -434,7 +434,11 @@ namespace Protocol
 				if (!size) {
 					handle_expiry();
 					
-					return Status::DRAINING;
+					if (is_draining() || is_closing())
+						return Status::DRAINING;
+					
+					// Timer fired but connection is still alive — retry:
+					continue;
 				}
 				
 				auto packet_info = ngtcp2_pkt_info{

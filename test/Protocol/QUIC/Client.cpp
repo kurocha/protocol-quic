@@ -109,7 +109,7 @@ namespace Protocol
 		UnitTest::Suite ClientTestSuite {
 			"Protocol::QUIC::Client",
 			
-			{"it should have some real tests",
+			{"it can send and receive data",
 				[](UnitTest::Examiner & examiner) {
 					Scheduler::Reactor::Bound bound;
 					Configuration configuration;
@@ -159,6 +159,8 @@ namespace Protocol
 					Protocol::QUIC::TLS::ClientContext tls_client_context;
 					tls_client_context.protocols().push_back("txt");
 					
+					std::vector<std::string> received_data;
+					
 					auto client_fiber = std::make_unique<Scheduler::Fiber>([&] {
 						for (auto & address : addresses) {
 							Scheduler::Fiber::current->annotate(std::string("connecting to ") + address.to_string());
@@ -176,8 +178,7 @@ namespace Protocol
 								stream->output_buffer().close();
 								stream->data_received.acquire();
 								
-								// The content was echoed back:
-								examiner.expect(stream->input_buffer().data()).to(be == "Hello World");
+								received_data.push_back(std::string(stream->input_buffer().data()));
 								
 								client.close();
 							});
@@ -196,7 +197,11 @@ namespace Protocol
 					
 					bound.reactor.run();
 					
-					
+					// Assert after the reactor finishes so assertions are attributed to this test case:
+					examiner.expect(received_data.size()).to(be == addresses.size());
+					for (auto & data : received_data) {
+						examiner.expect(data).to(be == "Hello World");
+					}
 				}
 			},
 		};

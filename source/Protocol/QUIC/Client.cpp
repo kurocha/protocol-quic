@@ -73,6 +73,8 @@ namespace Protocol
 			Scheduler::After after(duration);
 			
 			after.wait();
+			
+			disconnect();
 		}
 		
 		void Client::connect()
@@ -85,8 +87,12 @@ namespace Protocol
 				
 				auto status = receive_packets(*path);
 				
-				if (status == Status::DRAINING || status == Status::CLOSING) {
-					// We can immediately disconnect.
+				if (status == Status::DRAINING) {
+					// Peer closed: wait out the drain period before disconnecting.
+					drain();
+					return;
+				} else if (status == Status::CLOSING) {
+					// We closed: can leave immediately.
 					return;
 				}
 			}
