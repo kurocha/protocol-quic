@@ -123,18 +123,22 @@ namespace Protocol
 				bool result = _received_packets.acquire(extract_optional(expiry_timeout()));
 				
 				if (result) {
-					Status result = send_packets();
+					Status status = send_packets();
 					
-					if (result == Status::DRAINING || result == Status::CLOSING) {
+					if (status == Status::DRAINING || status == Status::CLOSING) {
 						// Drain the connection.
 						drain();
 						return;
 					}
 				}
 				else {
-					// Timeout.
+					// Timeout - handle loss detection / retransmit timers.
 					handle_expiry();
-					return;
+					
+					if (is_closing() || is_draining()) {
+						drain();
+						return;
+					}
 				}
 			}
 		}
