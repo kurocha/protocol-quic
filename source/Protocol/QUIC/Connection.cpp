@@ -185,12 +185,10 @@ namespace Protocol
 			auto maybe_expiry = ngtcp2_conn_get_expiry(_connection);
 			
 			if (maybe_expiry != UINT64_MAX) {
-				return Timestamp::from_nanoseconds(maybe_expiry);
-			}
+				return Timestamp(Timestamp::from_nanoseconds(maybe_expiry));			}
 			
 			return std::nullopt;
-		}
-		
+		}		
 		Time::Duration Connection::close_duration() {
 			auto probe_timeout = Time::Interval::from_nanoseconds(ngtcp2_conn_get_pto(_connection));
 			
