@@ -25,7 +25,6 @@ namespace Protocol
 		
 		Dispatcher::~Dispatcher()
 		{
-			std::cerr << "Dispatcher going out of scope..." << std::endl;
 		}
 		
 		void Dispatcher::close()
@@ -70,16 +69,12 @@ namespace Protocol
 		
 		Server* Dispatcher::listen(Socket &socket)
 		{
-			std::cerr << "Dispatcher[" << this << "]::listen starting on socket " << socket << std::endl;
 			Address remote_address;
 			ECN ecn = ECN::UNSPECIFIED;
 			std::array<Byte, 1024*64> buffer;
 			
 			while (socket) {
-				std::cerr << "Dispatcher[" << this << "]::listen waiting for packet..." << std::endl;
 				auto length = socket.receive_packet(buffer.data(), buffer.size(), remote_address, ecn);
-				
-				std::cerr << "Dispatcher[" << this << "]::listen received " << length << " bytes from " << remote_address << std::endl;
 				
 				ngtcp2_version_cid version_cid;
 				auto result = ngtcp2_pkt_decode_version_cid(&version_cid, buffer.data(), length, DEFAULT_SCID_LENGTH);
@@ -121,6 +116,7 @@ namespace Protocol
 				
 				auto server = this->create_server(socket, remote_address, packet_header);
 				server->process_packet(socket, remote_address, data, length, ecn);
+				server->send_packets();
 				
 				// Associate all the connection IDs with the server:
 				_servers.emplace(dcid_key, server);
@@ -135,6 +131,7 @@ namespace Protocol
 			else {
 				auto server = iterator->second;
 				server->process_packet(socket, remote_address, data, length, ecn);
+				server->send_packets();
 				return nullptr;
 			}
 		}

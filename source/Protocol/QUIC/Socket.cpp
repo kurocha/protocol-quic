@@ -28,7 +28,7 @@ namespace Protocol
 {
 	namespace QUIC
 	{
-		enum {DEBUG = 1};
+		enum {DEBUG = 0};
 		
 		int set_receive_ecn(int descriptor, int family) {
 			int tos = 1;
@@ -106,21 +106,21 @@ namespace Protocol
 			set_ip_dontfrag(_descriptor, domain);
 		}
 		
-		void Socket::close() {
-				if (_descriptor >= 0) {
-					auto result = ::close(_descriptor);
-					
-					if (result == -1) {
-						throw std::system_error(errno, std::generic_category(), "close");
-					}
-					
-					_descriptor = -1;
+		void Socket::close()
+		{
+			if (_descriptor >= 0) {
+				auto result = ::close(_descriptor);
+				
+				if (result == -1) {
+					throw std::system_error(errno, std::generic_category(), "close");
 				}
+				
+				_descriptor = -1;
 			}
+		}
 		
 		Socket::~Socket()
 		{
-			std::cerr << *this << " Socket::~Socket()" << std::endl;
 			close();
 		}
 		
@@ -179,48 +179,47 @@ namespace Protocol
 		
 		bool Socket::bind(const Address & address)
 		{
-		// Enable address reuse for multiple binds on the same address
-		int reuse = 1;
-		if (setsockopt(_descriptor, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-			std::cerr << "Warning: SO_REUSEADDR failed: " << errno << std::endl;
+			// Enable address reuse for multiple binds on the same address
+			int reuse = 1;
+
+			if (setsockopt(_descriptor, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+				std::cerr << "Warning: SO_REUSEADDR failed: " << errno << std::endl;
+			}
+			
+			if (::bind(_descriptor, &address.data.sa, address.length) < 0) {
+				std::cerr << "bind failed: errno=" << errno << std::endl;
+				return false;
+			}
+			
+			// Get the actual bound address (in case port was 0)
+			Address actualAddress;
+			socklen_t addrlen = sizeof(actualAddress.data);
+			if (getsockname(_descriptor, &actualAddress.data.sa, &addrlen) == 0) {
+				actualAddress.length = addrlen;
+				_local_address = actualAddress;
+			} else {
+				_local_address = address;
+			}
+			
+			return true;
 		}
-		
-		if (::bind(_descriptor, &address.data.sa, address.length) < 0) {
-			std::cerr << "bind failed: errno=" << errno << std::endl;
-			return false;
-		}
-		
-		// Get the actual bound address (in case port was 0)
-		Address actualAddress;
-		socklen_t addrlen = sizeof(actualAddress.data);
-		if (getsockname(_descriptor, &actualAddress.data.sa, &addrlen) == 0) {
-			actualAddress.length = addrlen;
-			_local_address = actualAddress;
-			std::cerr << *this << " bind address=" << address << " actual=" << actualAddress << std::endl;
-		} else {
-			_local_address = address;
-			std::cerr << *this << " bind address=" << address << std::endl;
-		}
-		
-		return true;
-	}
 	
-	bool Socket::connect(const Address & address)
-	{
-		if (::connect(_descriptor, &address.data.sa, address.length) < 0) {
-			std::cerr << "connect failed: errno=" << errno << std::endl;
-			return false;
-		}
-		
-		// Get the actual local address assigned after connect
-		Address local;
-		socklen_t addrlen = sizeof(local.data);
-		if (getsockname(_descriptor, &local.data.sa, &addrlen) == 0) {
-			local.length = addrlen;
-			_local_address = local;
-		}
-		
-		std::cerr << *this << " connect to=" << address << " from=" << _local_address << std::endl;
+		bool Socket::connect(const Address & address)
+		{
+			if (::connect(_descriptor, &address.data.sa, address.length) < 0) {
+				std::cerr << "connect failed: errno=" << errno << std::endl;
+				return false;
+			}
+			
+			// Get the actual local address assigned after connect
+			Address local;
+			socklen_t addrlen = sizeof(local.data);
+			if (getsockname(_descriptor, &local.data.sa, &addrlen) == 0) {
+				local.length = addrlen;
+				_local_address = local;
+			}
+			
+			_remote_address = address;
 			return true;
 		}
 		
@@ -265,7 +264,6 @@ namespace Protocol
 		
 		size_t Socket::send_packet(const void * data, std::size_t size, const Destination & destination, ECN ecn, const Timestamp * timeout)
 		{
-			std::cerr << "Socket[" << this << "]::send_packet (descriptor=" << _descriptor << ", size=" << size << " bytes)" << std::endl;
 			if (DEBUG) std::cerr << *this << " send_packet " << size << " bytes to " << destination << std::endl;
 			
 			iovec iov{
@@ -298,76 +296,66 @@ namespace Protocol
 			Scheduler::Monitor monitor(_descriptor);
 			
 			do {
-			result = sendmsg(_descriptor, &message, 0);
-			std::cerr << "Socket[" << this << "]::send_packet sendmsg returned " << result << " (errno=" << errno << ")" << std::endl;
-			
-			if (result == -1) {
-				if (errno == EAGAIN || errno == EWOULDBLOCK) {
-					std::cerr << "Socket[" << this << "]::send_packet EAGAIN, waiting..." << std::endl;
-					if (!monitor.wait_writable(timeout)) {
-						std::cerr << "Socket[" << this << "]::send_packet timeout on write" << std::endl;
-						return 0;
+				result = sendmsg(_descriptor, &message, 0);
+				
+				if (result == -1) {
+					if (errno == EAGAIN || errno == EWOULDBLOCK) {
+						if (!monitor.wait_writable(timeout)) {
+							return 0;
+						}
+					} else if (errno == EINTR) {
+						// ignore
+					} else {
+						throw std::system_error(errno, std::generic_category(), "sendmsg");
 					}
-				} else if (errno == EINTR) {
-					// ignore
-				} else {
-					throw std::system_error(errno, std::generic_category(), "sendmsg");
 				}
-			}
-		} while (result == -1);
-		
-		return result;
-}
-
-size_t Socket::receive_packet(void *data, std::size_t size, Address &address, ECN &ecn, const Timestamp * timeout)
-{
-	std::cerr << "Socket[" << this << "]::receive_packet (descriptor=" << _descriptor << ", timeout=" << (timeout ? "yes" : "no") << ")" << std::endl;
-	
-	iovec iov = {
-		.iov_base = data,
-		.iov_len = size
-	};
-	
-	uint8_t message_control[CMSG_SPACE(sizeof(uint8_t))];
-	
-	msghdr message = {
-		// Provide the address data pointer / length:
-		.msg_name = &address.data,
-		.msg_namelen = sizeof(address.data),
-		
-		// Provide the data buffer io vectors:
-		.msg_iov = &iov,
-		.msg_iovlen = 1,
-		
-		// Provide the message control buffer (for reading the ecn):
-		.msg_control = message_control,
-		.msg_controllen = sizeof(message_control)
-	};
-	
-	ssize_t result;
-	Scheduler::Monitor monitor(_descriptor);
-	
-	std::cerr << "Socket[" << this << "]::receive_packet entering recv loop" << std::endl;
-	
-	do {
-		result = recvmsg(_descriptor, &message, 0);
-		
-		std::cerr << "Socket[" << this << "]::receive_packet recvmsg returned " << result << " (errno=" << errno << ")" << std::endl;
-		
-		if (result == -1) {
-			if (errno == EAGAIN || errno == EWOULDBLOCK) {
-				std::cerr << "Socket[" << this << "]::receive_packet EAGAIN, waiting..." << std::endl;
-				if (!monitor.wait_readable(timeout)) {
-					std::cerr << "Socket[" << this << "]::receive_packet timeout" << std::endl;
-					return 0;
-				}
-			} else if (errno == EINTR) {
-				// ignore
-			} else {
-				throw std::system_error(errno, std::generic_category(), "recvmsg");
-			}
+			} while (result == -1);
+			
+			return result;
 		}
-	} while (result == -1);
+
+		size_t Socket::receive_packet(void *data, std::size_t size, Address &address, ECN &ecn, const Timestamp * timeout)
+		{
+			iovec iov = {
+				.iov_base = data,
+				.iov_len = size
+			};
+			
+			uint8_t message_control[CMSG_SPACE(sizeof(uint8_t))];
+			
+			msghdr message = {
+				// Provide the address data pointer / length:
+				.msg_name = &address.data,
+				.msg_namelen = sizeof(address.data),
+				
+				// Provide the data buffer io vectors:
+				.msg_iov = &iov,
+				.msg_iovlen = 1,
+				
+				// Provide the message control buffer (for reading the ecn):
+				.msg_control = message_control,
+				.msg_controllen = sizeof(message_control)
+			};
+			
+			ssize_t result;
+			Scheduler::Monitor monitor(_descriptor);
+			
+			do {
+				result = recvmsg(_descriptor, &message, 0);
+				
+				if (result == -1) {
+					if (errno == EAGAIN || errno == EWOULDBLOCK) {
+						if (!monitor.wait_readable(timeout)) {
+							return 0;
+						}
+					} else if (errno == EINTR) {
+						// ignore
+					} else {
+						throw std::system_error(errno, std::generic_category(), "recvmsg");
+					}
+				}
+			} while (result == -1);
+			
 			// Read the ECN from the message control buffer:
 			_ecn = ecn = get_ecn(&message, address.data.sa.sa_family);
 			

@@ -79,18 +79,13 @@ namespace Protocol
 		
 		void Client::connect()
 		{
-			std::cerr << "Client[" << this << "]::connect starting loop" << std::endl;
 			while (true) {
-				std::cerr << "Client[" << this << "]::connect sending packets" << std::endl;
 				send_packets();
 				
 				auto path = ngtcp2_conn_get_path(_connection);
 				assert(path);
 				
-				std::cerr << "Client[" << this << "]::connect receiving packets" << std::endl;
 				auto status = receive_packets(*path);
-				
-				std::cerr << "Client[" << this << "]::connect status=" << static_cast<int>(status) << std::endl;
 				
 				if (status == Status::DRAINING) {
 					// Peer closed: wait out the drain period before disconnecting.

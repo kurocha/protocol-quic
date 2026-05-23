@@ -119,19 +119,11 @@ namespace Protocol
 		
 		void Server::accept()
 		{
-			std::cerr << "Server[" << this << "]::accept starting loop" << std::endl;
 			while (true) {
-				auto expiry = extract_optional(expiry_timeout());
-				std::cerr << "Server[" << this << "]::accept acquiring semaphore (has expiry: " << (expiry ? "yes" : "no") << ")" << std::endl;
 				bool result = _received_packets.acquire(extract_optional(expiry_timeout()));
 				
-				std::cerr << "Server[" << this << "]::accept semaphore result=" << result << std::endl;
-				
 				if (result) {
-					std::cerr << "Server[" << this << "]::accept sending packets" << std::endl;
 					Status status = send_packets();
-					
-					std::cerr << "Server[" << this << "]::accept status=" << static_cast<int>(status) << std::endl;
 					
 					if (status == Status::DRAINING || status == Status::CLOSING) {
 						// Drain the connection.
