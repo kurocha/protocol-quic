@@ -38,7 +38,7 @@ namespace Protocol
 			void associate(const ngtcp2_cid *cid, Server * server);
 			void disassociate(const ngtcp2_cid *cid);
 			
-			void remove(Server * server);
+			virtual void remove(Server * server);
 			
 			// Create a server instance to handle a new connection.
 			virtual Server * create_server(Socket &socket, const Address &address, const ngtcp2_pkt_hd &packet_header) = 0;
