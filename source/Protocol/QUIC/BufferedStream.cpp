@@ -66,9 +66,7 @@ namespace Protocol
 				}
 				
 				if (result > 0) {
-					auto & socket = *reinterpret_cast<Socket*>(path_storage.path.user_data);
-					
-					socket.send_packet(packet.data(), result, path_storage.path.remote, static_cast<ECN>(packet_info.ecn));
+					_connection.send_packet(path_storage.path, packet_info, packet.data(), result);
 				}
 				
 				if (written_length > 0 || chunks.empty()) {

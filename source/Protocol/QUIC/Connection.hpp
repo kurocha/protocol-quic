@@ -114,6 +114,7 @@ namespace Protocol
 			
 			Status send_packets();
 			virtual Status send_stream_data();
+			void send_packet(const ngtcp2_path &path, const ngtcp2_pkt_info &packet_info, const Byte *data, std::size_t size);
 			
 			// Receive packets from the specified path.
 			Status receive_packets(const ngtcp2_path & path, Socket & socket, std::size_t count = 1);

@@ -393,18 +393,7 @@ namespace Protocol
 				if (result < 0) return Status(result);
 				
 				if (result > 0) {
-					auto timeout = expiry_timeout();
-					auto & socket = *reinterpret_cast<Socket*>(path_storage.path.user_data);
-					
-					auto size = socket.send_packet(packet.data(), result, path_storage.path.remote, static_cast<ECN>(packet_info.ecn), extract_optional(timeout));
-					
-					if (!size) {
-						handle_expiry();
-					}
-					
-					if (size != result) {
-						throw std::runtime_error("send_packet failed");
-					}
+					send_packet(path_storage.path, packet_info, packet.data(), result);
 				}
 				else {
 					break;
@@ -423,6 +412,22 @@ namespace Protocol
 			return Status::OK;
 		}
 		
+		void Connection::send_packet(const ngtcp2_path &path, const ngtcp2_pkt_info &packet_info, const Byte *data, std::size_t size)
+		{
+			auto timeout = expiry_timeout();
+			auto & socket = *reinterpret_cast<Socket*>(path.user_data);
+
+			auto sent_size = socket.send_packet(data, size, path.remote, static_cast<ECN>(packet_info.ecn), extract_optional(timeout));
+
+			if (!sent_size) {
+				handle_expiry();
+			}
+
+			if (sent_size != size) {
+				throw std::runtime_error("send_packet failed");
+			}
+		}
+
 		Connection::Status Connection::receive_packets(const ngtcp2_path & path, Socket & socket, std::size_t count)
 		{
 			std::array<std::uint8_t, 1024*64> buffer;
