@@ -411,6 +411,11 @@ namespace Protocol
 				}
 			}
 			
+			return send_stream_data();
+		}
+		
+		Connection::Status Connection::send_stream_data()
+		{
 			for (auto & [stream_id, stream] : _streams) {
 				stream->send_data();
 			}

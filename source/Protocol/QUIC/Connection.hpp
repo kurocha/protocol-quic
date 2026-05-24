@@ -113,6 +113,7 @@ namespace Protocol
 			void set_last_error(int result, std::string_view reason = "");
 			
 			Status send_packets();
+			virtual Status send_stream_data();
 			
 			// Receive packets from the specified path.
 			Status receive_packets(const ngtcp2_path & path, Socket & socket, std::size_t count = 1);
