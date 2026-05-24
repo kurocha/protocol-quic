@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include <cstdint>
 #include <iostream>
+#include <string_view>
 
 namespace Protocol
 {
@@ -27,25 +28,10 @@ namespace Protocol
 	{
 		namespace TLS
 		{
-			int client_hello_callback(ptls_on_client_hello_t *self, ptls_t *ptls, ptls_on_client_hello_parameters_t *params) {
-				auto &negotiated_protocols = params->negotiated_protocols;
-				
-				for (size_t i = 0; i < negotiated_protocols.count; ++i) {
-					auto &protocol = negotiated_protocols.list[i];
-					
-					std::cerr << "Negotiated protocol: " << std::string_view(reinterpret_cast<char *>(protocol.base), protocol.len) << std::endl;
-					
-					if (ptls_set_negotiated_protocol(ptls, reinterpret_cast<char *>(protocol.base), protocol.len) != 0) {
-						return -1;
-					}
-					
-					return 0;
-				}
-				
-				return PTLS_ALERT_NO_APPLICATION_PROTOCOL;
+			bool matches_protocol(std::string_view server_protocol, const ptls_iovec_t &client_protocol)
+			{
+				return server_protocol == std::string_view(reinterpret_cast<const char *>(client_protocol.base), client_protocol.len);
 			}
-			
-			ptls_on_client_hello_t on_client_hello = {client_hello_callback};
 			
 			auto ticket_hmac = EVP_sha256();
 			
@@ -185,13 +171,13 @@ namespace Protocol
 			
 			ptls_encrypt_ticket_t encrypt_ticket = {encrypt_ticket_callback};
 			
-			ServerContext::ServerContext() : Context()
+			ServerContext::ServerContext() : Context(), _client_hello{{client_hello_callback}, this}
 			{
 				if (ngtcp2_crypto_picotls_configure_server_context(&_context) != 0) {
 					throw std::runtime_error("ngtcp2_crypto_picotls_configure_client_context failed!");
 				}
 				
-				_context.on_client_hello =  &on_client_hello;
+				_context.on_client_hello = &_client_hello.super;
 				_context.ticket_lifetime = 86400;
 				_context.require_dhe_on_psk = 1;
 				_context.server_cipher_preference = 1;
@@ -205,6 +191,36 @@ namespace Protocol
 			void ServerContext::set_require_client_authentication(bool enabled)
 			{
 				_context.require_client_authentication = enabled;
+			}
+
+			int ServerContext::client_hello_callback(ptls_on_client_hello_t *self, ptls_t *ptls, ptls_on_client_hello_parameters_t *params)
+			{
+				auto callback = reinterpret_cast<ClientHelloCallback *>(self);
+
+				return callback->context->client_hello(ptls, params);
+			}
+
+			int ServerContext::client_hello(ptls_t *ptls, ptls_on_client_hello_parameters_t *params)
+			{
+				auto &client_protocols = params->negotiated_protocols;
+
+				for (auto &server_protocol : protocols()) {
+					for (size_t i = 0; i < client_protocols.count; ++i) {
+						auto &client_protocol = client_protocols.list[i];
+
+						if (matches_protocol(server_protocol, client_protocol)) {
+							std::cerr << "Negotiated protocol: " << server_protocol << std::endl;
+
+							if (ptls_set_negotiated_protocol(ptls, server_protocol.data(), server_protocol.size()) != 0) {
+								return -1;
+							}
+
+							return 0;
+						}
+					}
+				}
+
+				return PTLS_ALERT_NO_APPLICATION_PROTOCOL;
 			}
 		}
 	}
