@@ -11,11 +11,11 @@
 #include "Address.hpp"
 
 #include <Time/Interval.hpp>
+#include <Scheduler/Monitor.hpp>
 
 #include <algorithm>
 #include <cstdint>
 #include <string>
-#include <optional>
 #include <vector>
 #include <cstring>
 #include <iosfwd>
@@ -59,6 +59,7 @@ namespace Protocol
 			Socket & operator=(const Socket &) = delete;
 			
 			int descriptor() const {return _descriptor;}
+			Scheduler::Monitor & monitor();
 			
 			const Address & local_address() const;
 			const Address & remote_address() const;
@@ -79,6 +80,7 @@ namespace Protocol
 			
 		private:
 			int _descriptor = -1;
+			Scheduler::Monitor _monitor;
 			
 			// Cached local and remote addresses.
 			// May be set by bind/connect.

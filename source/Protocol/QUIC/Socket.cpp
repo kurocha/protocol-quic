@@ -22,8 +22,6 @@
 #include <fcntl.h>
 #endif
 
-#include <Scheduler/Monitor.hpp>
-
 namespace Protocol
 {
 	namespace QUIC
@@ -93,9 +91,12 @@ namespace Protocol
 			return descriptor;
 		}
 		
-		Socket::Socket(int domain, int type, int protocol)
+		Socket::Socket(int domain, int type, int protocol) :
+			_descriptor(socket_nonblocking(domain, SOCK_DGRAM, 0)),
+			_monitor(_descriptor)
 		{
-			_descriptor = socket_nonblocking(domain, SOCK_DGRAM, 0);
+			(void)type;
+			(void)protocol;
 			
 			if (_descriptor < 0) {
 				throw std::system_error(errno, std::generic_category(), "socket");
@@ -124,9 +125,10 @@ namespace Protocol
 			close();
 		}
 		
-		Socket::Socket(Socket && other)
+		Socket::Socket(Socket && other) :
+			_descriptor(other._descriptor),
+			_monitor(std::move(other._monitor))
 		{
-			_descriptor = other._descriptor;
 			_local_address = other._local_address;
 			_remote_address = other._remote_address;
 			other._descriptor = -1;
@@ -134,11 +136,19 @@ namespace Protocol
 		
 		Socket & Socket::operator=(Socket && other)
 		{
+			close();
+			
 			_descriptor = other._descriptor;
+			_monitor = std::move(other._monitor);
 			_local_address = other._local_address;
 			_remote_address = other._remote_address;
 			other._descriptor = -1;
 			return *this;
+		}
+		
+		Scheduler::Monitor & Socket::monitor()
+		{
+			return _monitor;
 		}
 		
 		const Address & Socket::local_address() const
@@ -293,14 +303,13 @@ namespace Protocol
 			}
 			
 			ssize_t result;
-			Scheduler::Monitor monitor(_descriptor);
 			
 			do {
 				result = sendmsg(_descriptor, &message, 0);
 				
 				if (result == -1) {
 					if (errno == EAGAIN || errno == EWOULDBLOCK) {
-						if (!monitor.wait_writable(timeout)) {
+						if (!monitor().wait_writable(timeout)) {
 							return 0;
 						}
 					} else if (errno == EINTR) {
@@ -338,14 +347,13 @@ namespace Protocol
 			};
 			
 			ssize_t result;
-			Scheduler::Monitor monitor(_descriptor);
 			
 			do {
 				result = recvmsg(_descriptor, &message, 0);
 				
 				if (result == -1) {
 					if (errno == EAGAIN || errno == EWOULDBLOCK) {
-						if (!monitor.wait_readable(timeout)) {
+						if (!monitor().wait_readable(timeout)) {
 							return 0;
 						}
 					} else if (errno == EINTR) {
