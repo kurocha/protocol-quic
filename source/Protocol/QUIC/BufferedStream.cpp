@@ -31,9 +31,14 @@ namespace Protocol
 				_input_buffer.close();
 			}
 			
+			input_available();
 			send_data();
 		}
 		
+		void BufferedStream::input_available()
+		{
+		}
+
 		Stream::Status BufferedStream::send_data()
 		{
 			ngtcp2_path_storage path_storage;

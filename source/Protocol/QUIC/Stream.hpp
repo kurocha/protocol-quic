@@ -65,6 +65,8 @@ namespace Protocol
 			
 			// The stream has received data and will append it to the input buffer.
 			virtual void receive_data(std::size_t offset, const void * data, std::size_t size, StreamDataFlags flags) = 0;
+
+			// If the stream has data, send it.
 			virtual Status send_data() = 0;
 			
 			virtual void acknowledge_data(std::size_t length) = 0;

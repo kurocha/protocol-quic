@@ -165,6 +165,9 @@ namespace Protocol
 			// Receive data from the QUIC stream and append it to the input buffer.
 			void receive_data(std::size_t offset, const void *data, std::size_t size, std::uint32_t flags) override;
 			
+			// Invoked when input data is appended or FIN is observed.
+			virtual void input_available();
+
 			// Send data from the output buffer to the QUIC stream.
 			// @returns the number of bytes sent.
 			Status send_data() override;
