@@ -4,6 +4,7 @@
 #include <Protocol/QUIC/Server.hpp>
 #include <Protocol/QUIC/Configuration.hpp>
 
+#include <array>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -81,10 +82,41 @@ namespace Protocol
 
 				dispatcher.process_packet(_socket, _client_socket.local_address(), packet.data(), packet.size(), ECN::UNSPECIFIED, version_cid);
 			}
+
+			// Start a connection for a client Initial packet without processing the packet, and route its connection IDs to the server like `Dispatcher::process_packet` does:
+			Server * accept(const std::vector<Byte> & packet)
+			{
+				ngtcp2_pkt_hd packet_header;
+
+				if (ngtcp2_accept(&packet_header, packet.data(), packet.size()) != 0) {
+					throw std::runtime_error("Could not accept packet!");
+				}
+
+				auto server = dispatcher.create_server(_socket, _client_socket.local_address(), packet_header);
+
+				dispatcher.associate(&packet_header.dcid, server);
+
+				for (auto & scid : server->scids()) {
+					dispatcher.associate(&scid, server);
+				}
+
+				return server;
+			}
 		};
 
-		// Build a client Initial packet (QUIC version 1) which fills a datagram of the minimum size a server accepts. The payload is garbage, so the server can never decrypt it. The Length field covers the rest of the datagram, plus `excess_length` bytes which the datagram doesn't contain.
-		std::vector<Byte> initial_packet(std::size_t excess_length = 0)
+		// Issue a connection ID like ngtcp2 does when it sends NEW_CONNECTION_ID:
+		ngtcp2_cid issue_connection_id(Server & server)
+		{
+			ngtcp2_cid cid;
+			std::array<std::uint8_t, NGTCP2_STATELESS_RESET_TOKENLEN> token;
+
+			server.generate_connection_id(&cid, DEFAULT_SCID_LENGTH, token.data());
+
+			return cid;
+		}
+
+		// Build a client Initial packet (QUIC version 1) which fills a datagram of the minimum size a server accepts. The payload is garbage, so the server can never decrypt it. The Length field covers the rest of the datagram, plus `excess_length` bytes which the datagram doesn't contain. The packet is sent to `dcid` if given.
+		std::vector<Byte> initial_packet(std::size_t excess_length = 0, const ngtcp2_cid * dcid = nullptr)
 		{
 			std::vector<Byte> packet;
 
@@ -95,8 +127,14 @@ namespace Protocol
 			packet.insert(packet.end(), {0x00, 0x00, 0x00, 0x01});
 
 			// Destination connection ID:
-			packet.push_back(8);
-			packet.insert(packet.end(), {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08});
+			if (dcid) {
+				packet.push_back(static_cast<Byte>(dcid->datalen));
+				packet.insert(packet.end(), dcid->data, dcid->data + dcid->datalen);
+			}
+			else {
+				packet.push_back(8);
+				packet.insert(packet.end(), {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08});
+			}
 
 			// Source connection ID:
 			packet.push_back(8);
@@ -150,6 +188,44 @@ namespace Protocol
 
 					// The connection was dropped, so the same packet should start a new connection rather than being routed to the removed server:
 					harness.deliver(packet);
+
+					examiner.expect(harness.dispatcher.created_servers.size()).to(be == 2);
+				}
+			},
+
+			{"it routes packets for connection IDs issued after the connection was created",
+				[](UnitTest::Examiner & examiner) {
+					DispatcherHarness harness;
+					auto server = harness.accept(initial_packet());
+
+					auto issued = issue_connection_id(*server);
+					auto retired = issue_connection_id(*server);
+
+					// The client retired this ID, so a packet sent to it starts a new connection:
+					server->remove_connection_id(&retired);
+					harness.deliver(initial_packet(0, &retired));
+
+					examiner.expect(harness.dispatcher.created_servers.size()).to(be == 2);
+
+					// A packet sent to the issued ID goes to the existing server rather than starting a new connection:
+					harness.deliver(initial_packet(0, &issued));
+
+					examiner.expect(harness.dispatcher.created_servers.size()).to(be == 2);
+				}
+			},
+
+			{"it does not route connection IDs issued by a removed server",
+				[](UnitTest::Examiner & examiner) {
+					DispatcherHarness harness;
+					auto server = harness.accept(initial_packet());
+
+					server->disconnect();
+
+					examiner.expect(harness.dispatcher.removed_servers.size()).to(be == 1);
+
+					// The removed server must not receive any more packets, so this starts a new connection:
+					auto issued = issue_connection_id(*server);
+					harness.deliver(initial_packet(0, &issued));
 
 					examiner.expect(harness.dispatcher.created_servers.size()).to(be == 2);
 				}

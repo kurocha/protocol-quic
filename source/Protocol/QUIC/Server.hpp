@@ -34,6 +34,9 @@ namespace Protocol
 			
 			void disconnect() override;
 			
+			void generate_connection_id(ngtcp2_cid *cid, std::size_t length, uint8_t *token) override;
+			void remove_connection_id(const ngtcp2_cid *cid) override;
+			
 			void process_packet(Socket & socket, const Address & remote_address, const Byte *data, std::size_t length, ECN ecn);
 			
 			void accept();
@@ -47,6 +50,9 @@ namespace Protocol
 			Scheduler::Semaphore _received_packets = 0;
 			
 			ngtcp2_cid _scid;
+			
+			// Whether the server has been removed from the dispatcher:
+			bool _removed = false;
 			
 			void print(std::ostream & output) const override;
 		};

@@ -72,7 +72,24 @@ namespace Protocol
 		
 		void Server::disconnect()
 		{
+			_removed = true;
 			_dispatcher.remove(this);
+		}
+		
+		void Server::generate_connection_id(ngtcp2_cid *cid, std::size_t length, uint8_t *token)
+		{
+			Connection::generate_connection_id(cid, length, token);
+			
+			// ngtcp2 issues more connection IDs (NEW_CONNECTION_ID) whenever it writes a 1-RTT packet, and the client may switch to any of them, e.g. quic-go does during the handshake. Route them to this server, unless it has been removed: an entry for a removed server would outlive it.
+			if (!_removed) {
+				_dispatcher.associate(cid, this);
+			}
+		}
+		
+		void Server::remove_connection_id(const ngtcp2_cid *cid)
+		{
+			// The client retired this ID. ngtcp2 issues another one in its place, so the entries would otherwise keep growing for as long as the connection lasts.
+			_dispatcher.disassociate(cid);
 		}
 		
 		void Server::process_packet(Socket & socket, const Address & remote_address, const Byte *data, std::size_t length, ECN ecn)

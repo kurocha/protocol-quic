@@ -9,7 +9,9 @@
 #include "Dispatcher.hpp"
 #include "Server.hpp"
 
+#include <algorithm>
 #include <array>
+#include <vector>
 #include <ngtcp2/ngtcp2.h>
 #include <stdexcept>
 #include <iostream>
@@ -72,8 +74,17 @@ namespace Protocol
 		
 		void Dispatcher::send_packets()
 		{
-			for (auto & server : _servers) {
-				server.second->send_packets();
+			// Sending can issue or retire connection IDs, which changes `_servers`, and a server is listed once for each of its connection IDs, so send from a list of the distinct servers:
+			std::vector<Server *> servers;
+			
+			for (auto & [key, server] : _servers) {
+				if (std::find(servers.begin(), servers.end(), server) == servers.end()) {
+					servers.push_back(server);
+				}
+			}
+			
+			for (auto server : servers) {
+				server->send_packets();
 			}
 		}
 		
@@ -142,12 +153,6 @@ namespace Protocol
 				server->send_packets();
 
 				if (!associated(dcid_key, server)) return nullptr;
-
-				// Sending the first flight may issue additional connection IDs:
-				scids = server->scids();
-				for (auto & scid : scids) {
-					associate(&scid, server);
-				}
 
 				return server;
 			}
