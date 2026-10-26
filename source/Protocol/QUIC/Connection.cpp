@@ -494,6 +494,19 @@ namespace Protocol
 			return 0;
 		}
 		
+		int remove_connection_id_callback(ngtcp2_conn *conn, const ngtcp2_cid *cid, void *user_data)
+		{
+			auto & connection = *reinterpret_cast<Connection*>(user_data);
+			
+			try {
+				connection.remove_connection_id(cid);
+			} catch (...) {
+				return NGTCP2_ERR_CALLBACK_FAILURE;
+			}
+			
+			return 0;
+		}
+		
 		void log_printf(void *user_data, const char *fmt, ...) {
 			va_list ap;
 			(void)user_data;
@@ -524,6 +537,7 @@ namespace Protocol
 			callbacks->hp_mask = ngtcp2_crypto_hp_mask_cb;
 			callbacks->recv_retry = ngtcp2_crypto_recv_retry_cb;
 			callbacks->get_new_connection_id = get_new_connection_id_callback;
+			callbacks->remove_connection_id = remove_connection_id_callback;
 			callbacks->update_key = ngtcp2_crypto_update_key_cb;
 			callbacks->delete_crypto_aead_ctx = ngtcp2_crypto_delete_crypto_aead_ctx_cb;
 			callbacks->delete_crypto_cipher_ctx = ngtcp2_crypto_delete_crypto_cipher_ctx_cb;
@@ -568,6 +582,10 @@ namespace Protocol
 			if (ngtcp2_crypto_generate_stateless_reset_token(token, static_secret.data(), static_secret.size(), cid) != 0) {
 				throw std::runtime_error("Failed to generate stateless reset token!");
 			}
+		}
+		
+		void Connection::remove_connection_id(const ngtcp2_cid *cid)
+		{
 		}
 		
 		void Connection::set_last_error(int result, std::string_view reason)

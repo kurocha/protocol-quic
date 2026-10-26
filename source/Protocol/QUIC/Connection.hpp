@@ -110,6 +110,9 @@ namespace Protocol
 			
 			virtual void generate_connection_id(ngtcp2_cid *cid, std::size_t length, uint8_t *token);
 			
+			// Invoked when the remote peer retires a connection ID which was issued by `generate_connection_id`.
+			virtual void remove_connection_id(const ngtcp2_cid *cid);
+			
 			void set_last_error(int result, std::string_view reason = "");
 			
 			Status send_packets();

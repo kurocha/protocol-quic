@@ -60,6 +60,9 @@ namespace Protocol
 		private:
 			// Associates a connection ID with a server instance:
 			std::unordered_map<std::string, Server *> _servers;
+
+			// Whether the connection ID is still routed to the server. Only compares the pointer, so it is safe to call after the server has been freed.
+			bool associated(const std::string & key, const Server * server) const;
 		};
 	}
 }

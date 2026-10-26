@@ -9,7 +9,9 @@
 #include "Dispatcher.hpp"
 #include "Server.hpp"
 
+#include <algorithm>
 #include <array>
+#include <vector>
 #include <ngtcp2/ngtcp2.h>
 #include <stdexcept>
 #include <iostream>
@@ -50,20 +52,39 @@ namespace Protocol
 			_servers.erase(cid_key(cid->data, cid->datalen));
 		}
 		
+		bool Dispatcher::associated(const std::string & key, const Server * server) const
+		{
+			auto iterator = _servers.find(key);
+			
+			return iterator != _servers.end() && iterator->second == server;
+		}
+
 		void Dispatcher::remove(Server * server)
 		{
-			disassociate(server->client_initial_dcid());
-			
-			auto scids = server->scids();
-			for (auto & scid : scids) {
-				disassociate(&scid);
+			// Remove every connection ID routed to this server. The IDs reported by the connection can miss some, e.g. ngtcp2 only records the client's initial DCID once it starts processing the first Initial packet.
+			for (auto iterator = _servers.begin(); iterator != _servers.end();) {
+				if (iterator->second == server) {
+					iterator = _servers.erase(iterator);
+				}
+				else {
+					++iterator;
+				}
 			}
 		}
 		
 		void Dispatcher::send_packets()
 		{
-			for (auto & server : _servers) {
-				server.second->send_packets();
+			// Sending can issue or retire connection IDs, which changes `_servers`, and a server is listed once for each of its connection IDs, so send from a list of the distinct servers:
+			std::vector<Server *> servers;
+			
+			for (auto & [key, server] : _servers) {
+				if (std::find(servers.begin(), servers.end(), server) == servers.end()) {
+					servers.push_back(server);
+				}
+			}
+			
+			for (auto server : servers) {
+				server->send_packets();
 			}
 		}
 		
@@ -115,10 +136,8 @@ namespace Protocol
 				// TODO: Stateless retry.
 				
 				auto server = this->create_server(socket, remote_address, packet_header);
-				server->process_packet(socket, remote_address, data, length, ecn);
-				server->send_packets();
 				
-				// Associate all the connection IDs with the server:
+				// Associate the connection IDs before processing the packet, so that remove() clears them if the packet drops the connection:
 				_servers.emplace(dcid_key, server);
 				
 				auto scids = server->scids();
@@ -126,12 +145,26 @@ namespace Protocol
 					associate(&scid, server);
 				}
 				
+				server->process_packet(socket, remote_address, data, length, ecn);
+
+				// The server was removed if the packet dropped the connection, and may already be gone:
+				if (!associated(dcid_key, server)) return nullptr;
+
+				server->send_packets();
+
+				if (!associated(dcid_key, server)) return nullptr;
+
 				return server;
 			}
 			else {
 				auto server = iterator->second;
 				server->process_packet(socket, remote_address, data, length, ecn);
-				server->send_packets();
+
+				// The server was removed if the packet closed the connection, and may already be gone:
+				if (associated(dcid_key, server)) {
+					server->send_packets();
+				}
+
 				return nullptr;
 			}
 		}
