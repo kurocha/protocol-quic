@@ -136,7 +136,8 @@ namespace Protocol
 		
 		void Server::accept()
 		{
-			while (true) {
+			// A connection can end without entering the closing or draining period, e.g. by the idle timeout: `handle_error` disconnects it, but its timer stays expired, so the loop would spin. Stop once the server has been removed:
+			while (!_removed) {
 				bool result = _received_packets.acquire(extract_optional(expiry_timeout()));
 				
 				if (result) {
